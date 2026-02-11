@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # Redis for Celery broker
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # Flask Backend
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - ./backups:/app/backups
+    environment:
+      - FLASK_ENV=production
+      - CELERY_BROKER=redis://redis:6379/0
+      - CELERY_BACKEND=redis://redis:6379/0
+      - DATABASE_URI=sqlite:///backups.db
+    depends_on:
+      - redis
+    command: python run.py
+
+  # Celery Worker
+  celery-worker:
+    build: ./backend
+    volumes:
+      - ./backend:/app
+      - ./backups:/app/backups
+    environment:
+      - CELERY_BROKER=redis://redis:6379/0
+      - CELERY_BACKEND=redis://6379/0
+    depends_on:
+      - redis
+    command: celery -A app.tasks worker --loglevel=info
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build: ./backend
+    volumes:
+      - ./backend:/app
+    environment:
+      - CELERY_BROKER=redis://redis:6379/0
+      - CELERY_BACKEND=redis://6379/0
+    depends_on:
+      - redis
+    command: celery -A app.tasks beat --loglevel=info
+
+  # Frontend (Development)
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  redis_data:
