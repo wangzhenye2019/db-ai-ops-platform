@@ -2,7 +2,10 @@
   <div class="page">
     <div class="title-row">
       <div class="title">中间件部署</div>
-      <el-button type="primary" @click="openCreate">新增中间件</el-button>
+      <div class="actions">
+        <el-button @click="openImport">批量导入</el-button>
+        <el-button type="primary" @click="openCreate">新增中间件</el-button>
+      </div>
     </div>
     <el-card class="card">
       <el-table :data="items" stripe>
@@ -74,13 +77,65 @@
         <el-button type="primary" :loading="saving" @click="onSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="importVisible" title="批量导入中间件" width="720px">
+      <el-alert
+        type="info"
+        show-icon
+        :closable="false"
+        title="支持 CSV / XLSX / TXT（首行为表头）。建议先下载模板填写后再上传。"
+      />
+
+      <div class="import-actions">
+        <el-button @click="downloadTemplate('csv')">下载 CSV 模板</el-button>
+        <el-button @click="downloadTemplate('xlsx')">下载 Excel 模板</el-button>
+        <el-button @click="downloadTemplate('txt')">下载 TXT 模板</el-button>
+      </div>
+
+      <el-upload
+        :auto-upload="false"
+        :limit="1"
+        :file-list="fileList"
+        accept=".csv,.txt,.xlsx"
+        drag
+        @change="onFileChange"
+        @remove="onFileRemove"
+      >
+        <el-icon><UploadFilled /></el-icon>
+        <div class="el-upload__text">拖拽文件到此处，或点击上传</div>
+        <template #tip>
+          <div class="el-upload__tip">字段：name, mw_type, host, port, version, enabled, meta</div>
+        </template>
+      </el-upload>
+
+      <template v-if="importResult">
+        <el-divider />
+        <el-descriptions :column="4" border>
+          <el-descriptions-item label="总行数">{{ importResult.total }}</el-descriptions-item>
+          <el-descriptions-item label="成功">{{ importResult.success }}</el-descriptions-item>
+          <el-descriptions-item label="失败">{{ importResult.failed }}</el-descriptions-item>
+          <el-descriptions-item label="资源">{{ importResult.resource }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-table v-if="(importResult.errors || []).length" :data="importResult.errors" stripe class="error-table">
+          <el-table-column prop="row" label="行号" width="90" />
+          <el-table-column prop="error" label="错误" />
+        </el-table>
+      </template>
+
+      <template #footer>
+        <el-button @click="importVisible=false">关闭</el-button>
+        <el-button type="primary" :loading="importing" :disabled="!selectedFile" @click="doImport">开始导入</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { middlewareAPI } from '@/api/services'
+import { importAPI, middlewareAPI } from '@/api/services'
+import { saveBlob } from '@/utils/download'
 
 const items = ref([])
 const types = ref([{ value: 'other', label: 'OTHER' }])
@@ -89,6 +144,12 @@ const dialogVisible = ref(false)
 const saving = ref(false)
 const formRef = ref()
 const editingId = ref(null)
+
+const importVisible = ref(false)
+const importing = ref(false)
+const selectedFile = ref(null)
+const fileList = ref([])
+const importResult = ref(null)
 
 const form = reactive({
   name: '',
@@ -186,6 +247,47 @@ const onDelete = async (row) => {
   }
 }
 
+const openImport = () => {
+  importVisible.value = true
+  selectedFile.value = null
+  fileList.value = []
+  importResult.value = null
+}
+
+const onFileChange = (file, files) => {
+  fileList.value = files.slice(-1)
+  selectedFile.value = file.raw || null
+}
+
+const onFileRemove = () => {
+  fileList.value = []
+  selectedFile.value = null
+}
+
+const downloadTemplate = async (format) => {
+  try {
+    const blob = await importAPI.downloadTemplate('middlewares', format)
+    saveBlob(blob, `middlewares_template.${format}`)
+  } catch (e) {
+    ElMessage.error(e.message || '下载失败')
+  }
+}
+
+const doImport = async () => {
+  if (!selectedFile.value) return
+  importing.value = true
+  try {
+    const res = await importAPI.importFile('middlewares', selectedFile.value, false)
+    importResult.value = res
+    ElMessage.success('导入完成')
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -199,6 +301,10 @@ onMounted(load)
   justify-content: space-between;
   padding: 12px 16px;
 }
+.actions {
+  display: flex;
+  gap: 10px;
+}
 .title {
   font-size: 16px;
   font-weight: 700;
@@ -206,5 +312,15 @@ onMounted(load)
 }
 .card {
   margin: 0 8px;
+}
+
+.import-actions {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.error-table {
+  margin-top: 12px;
 }
 </style>

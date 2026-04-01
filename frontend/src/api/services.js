@@ -113,3 +113,16 @@ export const inspectionAPI = {
 export const auditAPI = {
   list: (params) => api.get('/audit/logs', { params })
 }
+
+export const importAPI = {
+  downloadTemplate: (resource, format) =>
+    api.get(`/import/templates/${resource}`, { params: { format }, responseType: 'blob' }),
+  importFile: (resource, file, dryRun = false) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/import/${resource}`, form, {
+      params: { dry_run: dryRun ? 1 : 0 },
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
+}

@@ -2,10 +2,13 @@
   <div class="databases">
     <div class="header">
       <h2>数据库管理</h2>
-      <el-button type="primary" @click="showAddDialog = true">
-        <el-icon><Plus /></el-icon>
-        添加数据库
-      </el-button>
+      <div class="header-actions">
+        <el-button @click="openImport">批量导入</el-button>
+        <el-button type="primary" @click="showAddDialog = true">
+          <el-icon><Plus /></el-icon>
+          添加数据库
+        </el-button>
+      </div>
     </div>
 
     <el-table :data="databases" stripe>
@@ -80,19 +83,77 @@
         <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="importVisible" title="批量导入数据库" width="720px">
+      <el-alert
+        type="info"
+        show-icon
+        :closable="false"
+        title="支持 CSV / XLSX / TXT（首行为表头）。建议先下载模板填写后再上传。"
+      />
+
+      <div class="import-actions">
+        <el-button @click="downloadTemplate('csv')">下载 CSV 模板</el-button>
+        <el-button @click="downloadTemplate('xlsx')">下载 Excel 模板</el-button>
+        <el-button @click="downloadTemplate('txt')">下载 TXT 模板</el-button>
+      </div>
+
+      <el-upload
+        :auto-upload="false"
+        :limit="1"
+        :file-list="fileList"
+        accept=".csv,.txt,.xlsx"
+        drag
+        @change="onFileChange"
+        @remove="onFileRemove"
+      >
+        <el-icon><UploadFilled /></el-icon>
+        <div class="el-upload__text">拖拽文件到此处，或点击上传</div>
+        <template #tip>
+          <div class="el-upload__tip">字段：name, db_type, host, port, database, username, password, enabled</div>
+        </template>
+      </el-upload>
+
+      <template v-if="importResult">
+        <el-divider />
+        <el-descriptions :column="4" border>
+          <el-descriptions-item label="总行数">{{ importResult.total }}</el-descriptions-item>
+          <el-descriptions-item label="成功">{{ importResult.success }}</el-descriptions-item>
+          <el-descriptions-item label="失败">{{ importResult.failed }}</el-descriptions-item>
+          <el-descriptions-item label="资源">{{ importResult.resource }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-table v-if="(importResult.errors || []).length" :data="importResult.errors" stripe class="error-table">
+          <el-table-column prop="row" label="行号" width="90" />
+          <el-table-column prop="error" label="错误" />
+        </el-table>
+      </template>
+
+      <template #footer>
+        <el-button @click="importVisible=false">关闭</el-button>
+        <el-button type="primary" :loading="importing" :disabled="!selectedFile" @click="doImport">开始导入</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { databaseAPI } from '@/api/services'
+import { databaseAPI, importAPI } from '@/api/services'
+import { saveBlob } from '@/utils/download'
 
 const databases = ref([])
 const dbTypes = ref([])
 const showAddDialog = ref(false)
 const editingDatabase = ref(null)
 const formRef = ref(null)
+
+const importVisible = ref(false)
+const importing = ref(false)
+const selectedFile = ref(null)
+const fileList = ref([])
+const importResult = ref(null)
 
 const form = ref({
   name: '',
@@ -220,6 +281,47 @@ const resetForm = () => {
   }
 }
 
+const openImport = () => {
+  importVisible.value = true
+  selectedFile.value = null
+  fileList.value = []
+  importResult.value = null
+}
+
+const onFileChange = (file, files) => {
+  fileList.value = files.slice(-1)
+  selectedFile.value = file.raw || null
+}
+
+const onFileRemove = () => {
+  fileList.value = []
+  selectedFile.value = null
+}
+
+const downloadTemplate = async (format) => {
+  try {
+    const blob = await importAPI.downloadTemplate('databases', format)
+    saveBlob(blob, `databases_template.${format}`)
+  } catch (e) {
+    ElMessage.error(e.message || '下载失败')
+  }
+}
+
+const doImport = async () => {
+  if (!selectedFile.value) return
+  importing.value = true
+  try {
+    const res = await importAPI.importFile('databases', selectedFile.value, false)
+    importResult.value = res
+    ElMessage.success('导入完成')
+    await loadDatabases()
+  } catch (e) {
+    ElMessage.error(e.message || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+
 onMounted(() => {
   loadDatabases()
   loadDbTypes()
@@ -236,5 +338,20 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.import-actions {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.error-table {
+  margin-top: 12px;
 }
 </style>

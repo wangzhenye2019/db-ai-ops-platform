@@ -70,7 +70,8 @@ def create_app(config_class=Config):
             kb_bp,
             ops_bp,
             inspection_bp,
-            audit_bp
+            audit_bp,
+            import_bp
         )
 
         app.register_blueprint(backup_bp, url_prefix='/api')
@@ -83,6 +84,7 @@ def create_app(config_class=Config):
         app.register_blueprint(ops_bp, url_prefix='/api')
         app.register_blueprint(inspection_bp, url_prefix='/api')
         app.register_blueprint(audit_bp, url_prefix='/api')
+        app.register_blueprint(import_bp, url_prefix='/api')
 
     Config.init_app(app)
     return app
