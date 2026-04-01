@@ -3,7 +3,7 @@
     <el-aside width="200px">
       <div class="logo">
         <el-icon><Coin /></el-icon>
-        <span>备份管理平台</span>
+        <span>数据库AI自动化运维平台</span>
       </div>
       <el-menu
         :default-active="activeMenu"

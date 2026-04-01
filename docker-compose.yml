@@ -11,8 +11,9 @@ services:
     command: redis-server --appendonly yes
 
   # Flask Backend
-  backend:
+  db-ai-ops-backend:
     build: ./backend
+    image: db-ai-ops-platform-backend:latest
     ports:
       - "5000:5000"
     volumes:
@@ -28,33 +29,36 @@ services:
     command: python run.py
 
   # Celery Worker
-  celery-worker:
+  db-ai-ops-worker:
     build: ./backend
+    image: db-ai-ops-platform-backend:latest
     volumes:
       - ./backend:/app
       - ./backups:/app/backups
     environment:
       - CELERY_BROKER=redis://redis:6379/0
-      - CELERY_BACKEND=redis://6379/0
+      - CELERY_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
-    command: celery -A app.tasks worker --loglevel=info
+    command: celery -A db_ai_ops.celery_app:celery worker --loglevel=info
 
   # Celery Beat (Scheduler)
-  celery-beat:
+  db-ai-ops-beat:
     build: ./backend
+    image: db-ai-ops-platform-backend:latest
     volumes:
       - ./backend:/app
     environment:
       - CELERY_BROKER=redis://redis:6379/0
-      - CELERY_BACKEND=redis://6379/0
+      - CELERY_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
-    command: celery -A app.tasks beat --loglevel=info
+    command: celery -A db_ai_ops.celery_app:celery beat --loglevel=info
 
   # Frontend (Development)
-  frontend:
+  db-ai-ops-frontend:
     build: ./frontend
+    image: db-ai-ops-platform-frontend:latest
     ports:
       - "3000:3000"
     volumes:

@@ -1,15 +1,15 @@
-# 数据库备份管理平台
+# 数据库AI自动化运维平台
 
-一个支持多种数据库（MySQL、PostgreSQL、Oracle、SQL Server）的自动化备份管理系统，采用前后端分离架构。
+一个面向多种数据库（MySQL、PostgreSQL、Oracle、SQL Server 等）的 AI 自动化运维平台，采用前后端分离架构，覆盖安装部署 / 备份恢复 / 性能优化 / 故障自愈等场景。
 
 ## ✨ 特性
 
-- 🔐 **多数据库支持**：MySQL、PostgreSQL、Oracle、SQL Server
-- ⏰ **定时备份**：基于 Cron 表达式的灵活定时任务
-- 📊 **可视化管理**：现代化的 Web 界面，轻松管理备份
-- 🔄 **异步处理**：基于 Celery 的异步任务处理
-- 📈 **统计监控**：实时查看备份统计和状态
-- 🔍 **连接测试**：测试数据库连接是否正常
+- 🧩 **多数据库场景**：MySQL、PostgreSQL、Oracle、SQL Server 等
+- 🧰 **运维能力域**：安装部署 / 备份恢复 / 性能优化 / 故障自愈（规划与迭代中）
+- 🤖 **AI 辅助**：面向运维流程的智能分析与建议（规划与迭代中）
+- 📊 **可视化管理**：现代化 Web 界面统一编排与审计
+- 🔄 **异步任务**：基于 Celery 的后台任务执行框架
+- ⏰ **定时任务**：Cron 表达式驱动的任务编排（能力逐步补齐）
 
 ## 🏗️ 技术栈
 
@@ -18,7 +18,7 @@
 - Celery - 异步任务队列
 - Redis - 消息代理
 - SQLAlchemy - ORM
-- pymysql, psycopg2, cx-Oracle, pymssql - 数据库驱动
+- pymysql, psycopg2, cx-Oracle, pymssql - 数据库驱动（按需安装）
 
 ### 前端
 - Vue 3 - 前端框架
@@ -29,19 +29,16 @@
 ## 📁 项目结构
 
 ```
-backup_platform/
+db-ai-ops-platform/
 ├── backend/                 # 后端 API
-│   ├── app/
-│   │   ├── api/            # API 路由
-│   │   │   ├── backup_bp.py      # 备份相关 API
-│   │   │   ├── database_bp.py    # 数据库管理 API
-│   │   │   └── schedule_bp.py    # 定时任务 API
-│   │   ├── models.py       # 数据模型
-│   │   ├── tasks/          # Celery 任务
-│   │   │   └── backup_tasks.py   # 备份任务实现
-│   │   ├── __init__.py     # 应用初始化
-│   │   └── config.py       # 配置文件
+│   ├── db_ai_ops/           # 后端包（Flask app / Celery / ORM）
+│   │   ├── api/             # API 路由
+│   │   ├── tasks/           # Celery 任务
+│   │   ├── models.py        # 数据模型
+│   │   ├── config.py        # 配置文件
+│   │   └── celery_app.py    # Celery 入口
 │   ├── requirements.txt     # Python 依赖
+│   ├── requirements-drivers.txt # 可选：数据库驱动
 │   ├── Dockerfile           # Docker 配置
 │   └── run.py             # 启动文件
 ├── frontend/               # 前端 Vue
@@ -66,12 +63,14 @@ backup_platform/
 
 ## 🚀 快速开始
 
+更多部署方式见：[deployment.md](docs/deployment.md)
+
 ### 方式一：Docker Compose（推荐）
 
 1. **克隆项目**
 ```bash
 git clone <repository-url>
-cd backup_platform
+cd db-ai-ops-platform
 ```
 
 2. **配置环境变量**
@@ -97,6 +96,7 @@ docker-compose up -d
 ```bash
 cd backend
 pip install -r requirements.txt
+pip install -r requirements-drivers.txt  # 可选：需要连接/备份对应数据库时再安装
 ```
 
 2. **启动 Redis**
@@ -110,7 +110,7 @@ redis-server
 
 3. **初始化数据库**
 ```bash
-python -c "from app import create_app, db; app = create_app(); app.app_context().push(); db.create_all()"
+python -c "from db_ai_ops import create_app; from db_ai_ops.extensions import db; app = create_app(); app.app_context().push(); db.create_all()"
 ```
 
 4. **启动 Flask 服务器**
@@ -120,12 +120,12 @@ python run.py
 
 5. **启动 Celery Worker**
 ```bash
-celery -A app.tasks worker --loglevel=info
+celery -A db_ai_ops.celery_app:celery worker --loglevel=info
 ```
 
 6. **启动 Celery Beat（定时任务）**
 ```bash
-celery -A app.tasks beat --loglevel=info
+celery -A db_ai_ops.celery_app:celery beat --loglevel=info
 ```
 
 #### 前端启动
@@ -253,7 +253,7 @@ npm run dev
 
 1. 确认 Redis 服务正在运行
 2. 检查 Celery worker 是否正常启动
-3. 查看日志：`celery -A app.tasks worker --loglevel=debug`
+3. 查看日志：`celery -A db_ai_ops.celery_app:celery worker --loglevel=debug`
 
 ### 问题：前端无法连接后端
 

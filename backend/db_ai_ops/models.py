@@ -1,6 +1,8 @@
 from datetime import datetime
-from app import db
 import enum
+
+from db_ai_ops.extensions import db
+
 
 class DatabaseType(enum.Enum):
     MYSQL = "mysql"
@@ -8,23 +10,22 @@ class DatabaseType(enum.Enum):
     ORACLE = "oracle"
     MSSQL = "mssql"
 
+
 class Database(db.Model):
-    """Database connection configuration"""
     __tablename__ = 'databases'
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)  # Display name
+    name = db.Column(db.String(100), nullable=False)
     db_type = db.Column(db.Enum(DatabaseType), nullable=False)
     host = db.Column(db.String(255), nullable=False)
     port = db.Column(db.Integer, nullable=False)
     database = db.Column(db.String(100), nullable=False)
     username = db.Column(db.String(100), nullable=False)
-    password = db.Column(db.String(255), nullable=False)  # Should be encrypted in production
+    password = db.Column(db.String(255), nullable=False)
     enabled = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     backups = db.relationship('Backup', backref='database', lazy=True, cascade='all, delete-orphan')
     schedules = db.relationship('Schedule', backref='database', lazy=True, cascade='all, delete-orphan')
 
@@ -42,14 +43,15 @@ class Database(db.Model):
             'updated_at': self.updated_at.isoformat()
         }
 
+
 class BackupStatus(enum.Enum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"
 
+
 class Backup(db.Model):
-    """Backup record"""
     __tablename__ = 'backups'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -57,7 +59,7 @@ class Backup(db.Model):
     status = db.Column(db.Enum(BackupStatus), default=BackupStatus.PENDING)
     file_path = db.Column(db.String(512))
     file_size = db.Column(db.BigInteger)
-    task_id = db.Column(db.String(255))  # Celery task ID
+    task_id = db.Column(db.String(255))
     error_message = db.Column(db.Text)
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
@@ -77,13 +79,13 @@ class Backup(db.Model):
             'created_at': self.created_at.isoformat()
         }
 
+
 class Schedule(db.Model):
-    """Backup schedule"""
     __tablename__ = 'schedules'
 
     id = db.Column(db.Integer, primary_key=True)
     database_id = db.Column(db.Integer, db.ForeignKey('databases.id'), nullable=False)
-    cron_expression = db.Column(db.String(100), nullable=False)  # Cron format: "0 2 * * *"
+    cron_expression = db.Column(db.String(100), nullable=False)
     enabled = db.Column(db.Boolean, default=True)
     last_run = db.Column(db.DateTime)
     next_run = db.Column(db.DateTime)
@@ -99,3 +101,4 @@ class Schedule(db.Model):
             'next_run': self.next_run.isoformat() if self.next_run else None,
             'created_at': self.created_at.isoformat()
         }
+

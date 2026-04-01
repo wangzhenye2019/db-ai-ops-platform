@@ -1,13 +1,13 @@
 from flask import Blueprint, jsonify, request
-from app import db
-from app.models import Schedule
+
+from db_ai_ops.extensions import db
+from db_ai_ops.models import Schedule
 
 schedule_bp = Blueprint('schedule_bp', __name__)
 
 
 @schedule_bp.route('/schedules', methods=['GET'])
 def list_schedules():
-    """List all schedules"""
     schedules = Schedule.query.order_by(Schedule.created_at.desc()).all()
     return jsonify({
         'schedules': [schedule.to_dict() for schedule in schedules]
@@ -16,7 +16,6 @@ def list_schedules():
 
 @schedule_bp.route('/schedules', methods=['POST'])
 def create_schedule():
-    """Create a new backup schedule"""
     data = request.get_json()
 
     required_fields = ['database_id', 'cron_expression']
@@ -24,7 +23,6 @@ def create_schedule():
         if field not in data:
             return jsonify({'error': f'{field} is required'}), 400
 
-    # Validate cron expression (basic format check)
     cron_parts = data['cron_expression'].split()
     if len(cron_parts) != 5:
         return jsonify({'error': 'Invalid cron expression. Format: "min hour day month weekday"'}), 400
@@ -43,14 +41,12 @@ def create_schedule():
 
 @schedule_bp.route('/schedules/<int:schedule_id>', methods=['GET'])
 def get_schedule(schedule_id):
-    """Get schedule details"""
     schedule = Schedule.query.get_or_404(schedule_id)
     return jsonify(schedule.to_dict())
 
 
 @schedule_bp.route('/schedules/<int:schedule_id>', methods=['PUT'])
 def update_schedule(schedule_id):
-    """Update schedule"""
     schedule = Schedule.query.get_or_404(schedule_id)
     data = request.get_json()
 
@@ -64,7 +60,6 @@ def update_schedule(schedule_id):
 
 @schedule_bp.route('/schedules/<int:schedule_id>', methods=['DELETE'])
 def delete_schedule(schedule_id):
-    """Delete schedule"""
     schedule = Schedule.query.get_or_404(schedule_id)
     db.session.delete(schedule)
     db.session.commit()
@@ -74,7 +69,6 @@ def delete_schedule(schedule_id):
 
 @schedule_bp.route('/schedules/<int:schedule_id>/toggle', methods=['POST'])
 def toggle_schedule(schedule_id):
-    """Enable/disable schedule"""
     schedule = Schedule.query.get_or_404(schedule_id)
     schedule.enabled = not schedule.enabled
     db.session.commit()
@@ -87,7 +81,6 @@ def toggle_schedule(schedule_id):
 
 @schedule_bp.route('/schedules/cron-help', methods=['GET'])
 def cron_help():
-    """Get cron expression help"""
     return jsonify({
         'description': 'Cron expression format: minute hour day month weekday',
         'examples': [

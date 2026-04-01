@@ -1,14 +1,16 @@
+import os
+
 from flask import Blueprint, jsonify, request
-from app import db
-from app.models import Backup, BackupStatus
-from app.tasks import backup_database, cleanup_old_backups
+
+from db_ai_ops.extensions import db
+from db_ai_ops.models import Backup, BackupStatus
+from db_ai_ops.tasks import backup_database, cleanup_old_backups
 
 backup_bp = Blueprint('backup_bp', __name__)
 
 
 @backup_bp.route('/backups', methods=['GET'])
 def list_backups():
-    """List all backups with optional filtering"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     database_id = request.args.get('database_id', type=int)
@@ -34,29 +36,26 @@ def list_backups():
 
 @backup_bp.route('/backups/<int:backup_id>', methods=['GET'])
 def get_backup(backup_id):
-    """Get backup details"""
     backup = Backup.query.get_or_404(backup_id)
     return jsonify(backup.to_dict())
 
 
 @backup_bp.route('/backups', methods=['POST'])
 def create_backup():
-    """Create a new backup task"""
     data = request.get_json()
     database_id = data.get('database_id')
 
     if not database_id:
         return jsonify({'error': 'database_id is required'}), 400
 
-    # Check if database exists
-    from app.models import Database
+    from db_ai_ops.models import Database
+
     database = Database.query.get(database_id)
     if not database:
         return jsonify({'error': 'Database not found'}), 404
     if not database.enabled:
         return jsonify({'error': 'Database is disabled'}), 400
 
-    # Start backup task
     result = backup_database.delay(database_id)
 
     return jsonify({
@@ -68,7 +67,6 @@ def create_backup():
 
 @backup_bp.route('/backups/<int:backup_id>/download', methods=['GET'])
 def download_backup(backup_id):
-    """Get download link for backup file"""
     backup = Backup.query.get_or_404(backup_id)
 
     if backup.status != BackupStatus.SUCCESS:
@@ -76,7 +74,6 @@ def download_backup(backup_id):
     if not backup.file_path:
         return jsonify({'error': 'Backup file not found'}), 404
 
-    # In production, you would generate a signed URL or use Flask send_file
     return jsonify({
         'file_path': backup.file_path,
         'file_size': backup.file_size
@@ -85,10 +82,8 @@ def download_backup(backup_id):
 
 @backup_bp.route('/backups/<int:backup_id>', methods=['DELETE'])
 def delete_backup(backup_id):
-    """Delete backup record and file"""
     backup = Backup.query.get_or_404(backup_id)
 
-    # Delete file if exists
     if backup.file_path and os.path.exists(backup.file_path):
         try:
             os.remove(backup.file_path)
@@ -103,7 +98,6 @@ def delete_backup(backup_id):
 
 @backup_bp.route('/backups/cleanup', methods=['POST'])
 def cleanup_backups():
-    """Trigger cleanup of old backups"""
     result = cleanup_old_backups.delay()
     return jsonify({
         'message': 'Cleanup started',
@@ -113,15 +107,13 @@ def cleanup_backups():
 
 @backup_bp.route('/backups/stats', methods=['GET'])
 def backup_stats():
-    """Get backup statistics"""
-    from app.models import Database
+    from db_ai_ops.models import Database
 
     total_databases = Database.query.filter_by(enabled=True).count()
     total_backups = Backup.query.count()
     successful_backups = Backup.query.filter_by(status=BackupStatus.SUCCESS).count()
     failed_backups = Backup.query.filter_by(status=BackupStatus.FAILED).count()
 
-    # Calculate total backup size
     total_size = db.session.query(db.func.sum(Backup.file_size)).scalar() or 0
 
     return jsonify({
