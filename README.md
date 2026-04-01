@@ -144,6 +144,11 @@ npm run dev
 3. **访问应用**
 打开浏览器访问: http://localhost:3000
 
+#### 一键脚本（可选）
+
+- Windows：`scripts/dev-backend.ps1`、`scripts/dev-frontend.ps1`
+- Linux/macOS：`scripts/dev-backend.sh`、`scripts/dev-frontend.sh`
+
 ## 📖 使用指南
 
 ### 1. 添加数据库
