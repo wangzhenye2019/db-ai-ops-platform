@@ -5,6 +5,17 @@ import Backups from '@/views/Backups.vue'
 import Schedules from '@/views/Schedules.vue'
 import Login from '@/views/Login.vue'
 import { getToken } from '@/utils/auth'
+import Hosts from '@/views/servers/Hosts.vue'
+import HostBatchOps from '@/views/servers/BatchOps.vue'
+import HostBatchInspection from '@/views/servers/BatchInspection.vue'
+import HostKnowledge from '@/views/servers/Knowledge.vue'
+import MiddlewareDeploy from '@/views/middleware/Deploy.vue'
+import MiddlewareInspection from '@/views/middleware/Inspection.vue'
+import MiddlewareTroubleshoot from '@/views/middleware/Troubleshoot.vue'
+import MiddlewareKnowledge from '@/views/middleware/Knowledge.vue'
+import DataMigration from '@/views/DataMigration.vue'
+import OneClickInspection from '@/views/inspection/OneClick.vue'
+import InspectionReports from '@/views/inspection/Reports.vue'
 
 const routes = [
   {
@@ -34,6 +45,61 @@ const routes = [
   {
     path: '/schedules',
     component: Schedules,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/servers/hosts',
+    component: Hosts,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/servers/batch-ops',
+    component: HostBatchOps,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/servers/batch-inspection',
+    component: HostBatchInspection,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/servers/knowledge',
+    component: HostKnowledge,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/middleware/deploy',
+    component: MiddlewareDeploy,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/middleware/inspection',
+    component: MiddlewareInspection,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/middleware/troubleshoot',
+    component: MiddlewareTroubleshoot,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/middleware/knowledge',
+    component: MiddlewareKnowledge,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/data-migration',
+    component: DataMigration,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/inspection/one-click',
+    component: OneClickInspection,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/inspection/reports',
+    component: InspectionReports,
     meta: { requiresAuth: true }
   }
 ]

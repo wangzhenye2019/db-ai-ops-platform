@@ -22,6 +22,42 @@
           <el-icon><Timer /></el-icon>
           <span>定时</span>
         </el-menu-item>
+
+        <el-sub-menu index="/servers">
+          <template #title>
+            <el-icon><Monitor /></el-icon>
+            <span>服务器</span>
+          </template>
+          <el-menu-item index="/servers/hosts">主机添加</el-menu-item>
+          <el-menu-item index="/servers/batch-ops">批量运维</el-menu-item>
+          <el-menu-item index="/servers/batch-inspection">批量巡检</el-menu-item>
+          <el-menu-item index="/servers/knowledge">知识库</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="/middleware">
+          <template #title>
+            <el-icon><Connection /></el-icon>
+            <span>中间件</span>
+          </template>
+          <el-menu-item index="/middleware/deploy">部署</el-menu-item>
+          <el-menu-item index="/middleware/inspection">巡检</el-menu-item>
+          <el-menu-item index="/middleware/troubleshoot">故障排查</el-menu-item>
+          <el-menu-item index="/middleware/knowledge">知识库</el-menu-item>
+        </el-sub-menu>
+
+        <el-menu-item index="/data-migration">
+          <el-icon><Switch /></el-icon>
+          <span>数据迁移</span>
+        </el-menu-item>
+
+        <el-sub-menu index="/inspection">
+          <template #title>
+            <el-icon><List /></el-icon>
+            <span>巡检</span>
+          </template>
+          <el-menu-item index="/inspection/one-click">一键巡检</el-menu-item>
+          <el-menu-item index="/inspection/reports">巡检报告</el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
