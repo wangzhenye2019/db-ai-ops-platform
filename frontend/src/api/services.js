@@ -1,5 +1,10 @@
 import api from './index'
 
+export const authAPI = {
+  login: (data) => api.post('/auth/login', data),
+  me: () => api.get('/auth/me')
+}
+
 export const databaseAPI = {
   // Get all databases
   list: () => api.get('/databases'),
