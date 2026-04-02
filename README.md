@@ -1,6 +1,6 @@
 # 数据库AI自动化运维平台
 
-版本：v0.4.0
+版本：v0.4.1
 
 一个面向多种数据库（MySQL、PostgreSQL、Oracle、SQL Server 等）的 AI 自动化运维平台，采用前后端分离架构，覆盖安装部署 / 备份恢复 / 性能优化 / 故障自愈等场景。
 
@@ -151,6 +151,13 @@ npm run dev
 
 - Windows：`scripts/dev-backend.ps1`、`scripts/dev-frontend.ps1`
 - Linux/macOS：`scripts/dev-backend.sh`、`scripts/dev-frontend.sh`
+
+#### 自动化验证与发布（推荐）
+
+- 本地验证（通过后再提交/推送）：
+  - Windows：`scripts/verify.ps1`
+  - Linux/macOS：`scripts/verify.sh`
+- CI：提交到 GitHub 后会自动执行后端单测/前端构建（`.github/workflows/ci.yml`）
 
 ## 📖 使用指南
 

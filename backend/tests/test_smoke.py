@@ -1,0 +1,62 @@
+import io
+import os
+
+
+def _client():
+    os.environ['ADMIN_USERNAME'] = 'admin'
+    os.environ['ADMIN_PASSWORD'] = 'admin'
+    os.environ['CELERY_ALWAYS_EAGER'] = '1'
+    from db_ai_ops import create_app
+
+    app = create_app()
+    return app.test_client()
+
+
+def _login(client):
+    r = client.post('/api/auth/login', json={'username': 'admin', 'password': 'admin'})
+    assert r.status_code == 200
+    data = r.get_json()
+    assert 'token' in data
+    return data['token']
+
+
+def test_auth_and_core_endpoints():
+    client = _client()
+    token = _login(client)
+    headers = {'Authorization': f'Bearer {token}'}
+
+    for path in [
+        '/api/auth/me',
+        '/api/databases',
+        '/api/hosts',
+        '/api/middlewares',
+        '/api/kb/articles',
+        '/api/ops/tasks',
+        '/api/inspection/reports',
+        '/api/audit/logs?limit=5'
+    ]:
+        r = client.get(path, headers=headers)
+        assert r.status_code == 200
+
+
+def test_import_hosts_dry_run():
+    client = _client()
+    token = _login(client)
+    headers = {'Authorization': f'Bearer {token}'}
+
+    csv_content = (
+        'name,host,port,os_type,username,password,enabled,tags\n'
+        'web1,10.0.0.10,22,linux,root,,1,prod\n'
+    ).encode('utf-8')
+    data = {'file': (io.BytesIO(csv_content), 'hosts.csv')}
+    r = client.post(
+        '/api/import/hosts?dry_run=1&mode=insert',
+        data=data,
+        headers=headers,
+        content_type='multipart/form-data'
+    )
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body['dry_run'] is True
+    assert body['created'] == 1
+    assert len(body.get('preview') or []) >= 1
