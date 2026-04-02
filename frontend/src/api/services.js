@@ -117,11 +117,13 @@ export const auditAPI = {
 export const importAPI = {
   downloadTemplate: (resource, format) =>
     api.get(`/import/templates/${resource}`, { params: { format }, responseType: 'blob' }),
-  importFile: (resource, file, dryRun = false) => {
+  importFile: (resource, file, options = {}) => {
+    const dryRun = !!options.dryRun
+    const mode = options.mode || 'insert'
     const form = new FormData()
     form.append('file', file)
     return api.post(`/import/${resource}`, form, {
-      params: { dry_run: dryRun ? 1 : 0 },
+      params: { dry_run: dryRun ? 1 : 0, mode },
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   }

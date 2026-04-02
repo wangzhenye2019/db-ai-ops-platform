@@ -1,4 +1,5 @@
 import io
+from contextlib import nullcontext
 
 from flask import Blueprint, jsonify, request, send_file
 
@@ -125,6 +126,9 @@ def import_resource(resource):
         return jsonify({'error': 'file is required'}), 400
 
     dry_run = request.args.get('dry_run', '0') == '1'
+    mode = (request.args.get('mode') or 'insert').lower()
+    if mode not in {'insert', 'upsert'}:
+        return jsonify({'error': 'Invalid mode'}), 400
     spec = RESOURCE_SPECS[resource]
 
     headers, rows = _read_upload(file)
@@ -134,108 +138,240 @@ def import_resource(resource):
     headers = normalize_headers(headers, spec['mapping'])
     data_rows = rows_to_dicts(headers, rows)
 
+    def _mask_preview(item):
+        masked = dict(item)
+        if 'password' in masked and masked.get('password'):
+            masked['password'] = '******'
+        return masked
+
     total = len(data_rows)
-    success = 0
-    failed = 0
     errors = []
+    preview = []
+    created_count = 0
+    updated_count = 0
+    skipped_count = 0
 
-    created = []
-
-    for idx, row in enumerate(data_rows, start=2):
+    for line_no, row in enumerate(data_rows, start=2):
         try:
-            if resource == 'hosts':
-                name = str(row.get('name') or '').strip()
-                host = str(row.get('host') or '').strip()
-                if not name or not host:
-                    raise ValueError('name/host 不能为空')
-                port = int(row.get('port') or 22)
-                os_type_raw = str(row.get('os_type') or 'linux').strip().lower()
-                os_type = HostOSType(os_type_raw)
-                h = Host(
-                    name=name,
-                    host=host,
-                    port=port,
-                    os_type=os_type,
-                    username=str(row.get('username') or '').strip() or None,
-                    password=str(row.get('password') or '').strip() or None,
-                    enabled=parse_bool(row.get('enabled'), True),
-                    tags=parse_tags(row.get('tags'))
-                )
-                created.append(h)
+            ctx = db.session.begin_nested() if not dry_run else nullcontext()
+            with ctx:
+                if resource == 'hosts':
+                    name = str(row.get('name') or '').strip()
+                    host = str(row.get('host') or '').strip()
+                    if not name or not host:
+                        raise ValueError('name/host 不能为空')
+                    port = int(row.get('port') or 22)
+                    os_type_raw = str(row.get('os_type') or 'linux').strip().lower()
+                    os_type = HostOSType(os_type_raw)
+                    username = str(row.get('username') or '').strip() or None
+                    password = str(row.get('password') or '').strip() or None
+                    enabled_raw = row.get('enabled')
+                    enabled = parse_bool(enabled_raw, None)
+                    tags_raw = row.get('tags')
+                    tags = parse_tags(tags_raw)
 
-            elif resource == 'databases':
-                name = str(row.get('name') or '').strip()
-                db_type_raw = str(row.get('db_type') or '').strip().lower()
-                host = str(row.get('host') or '').strip()
-                port = row.get('port')
-                database = str(row.get('database') or '').strip()
-                username = str(row.get('username') or '').strip()
-                password = str(row.get('password') or '').strip()
-                if not name or not db_type_raw or not host or port is None or not database or not username:
-                    raise ValueError('name/db_type/host/port/database/username 不能为空')
-                db_type = DatabaseType(db_type_raw)
-                d = Database(
-                    name=name,
-                    db_type=db_type,
-                    host=host,
-                    port=int(port),
-                    database=database,
-                    username=username,
-                    password=password,
-                    enabled=parse_bool(row.get('enabled'), True)
-                )
-                created.append(d)
+                    existing = Host.query.filter_by(host=host, port=port).first()
+                    action = None
+                    if existing:
+                        if mode == 'insert':
+                            raise ValueError('记录已存在（host+port）')
+                        action = 'update'
+                        if not dry_run:
+                            existing.name = name
+                            existing.os_type = os_type
+                            if username is not None:
+                                existing.username = username
+                            if password:
+                                existing.password = password
+                            if enabled is not None:
+                                existing.enabled = enabled
+                            if str(tags_raw or '').strip() != '':
+                                existing.tags = tags
+                    else:
+                        action = 'create'
+                        if not dry_run:
+                            h = Host(
+                                name=name,
+                                host=host,
+                                port=port,
+                                os_type=os_type,
+                                username=username,
+                                password=password,
+                                enabled=enabled if enabled is not None else True,
+                                tags=tags
+                            )
+                            db.session.add(h)
 
-            else:
-                name = str(row.get('name') or '').strip()
-                mw_type_raw = str(row.get('mw_type') or '').strip().lower()
-                host = str(row.get('host') or '').strip()
-                port = row.get('port')
-                if not name or not mw_type_raw or not host or port is None:
-                    raise ValueError('name/mw_type/host/port 不能为空')
-                mw_type = MiddlewareType(mw_type_raw)
-                m = Middleware(
-                    name=name,
-                    mw_type=mw_type,
-                    host=host,
-                    port=int(port),
-                    version=str(row.get('version') or '').strip() or None,
-                    enabled=parse_bool(row.get('enabled'), True),
-                    meta=parse_json(row.get('meta'), {})
-                )
-                created.append(m)
+                    if action == 'create':
+                        created_count += 1
+                    elif action == 'update':
+                        updated_count += 1
 
-            success += 1
+                    if dry_run and len(preview) < 20:
+                        preview.append(_mask_preview({
+                            'row': line_no,
+                            'action': action,
+                            'name': name,
+                            'host': host,
+                            'port': port,
+                            'os_type': os_type.value,
+                            'username': username,
+                            'password': password,
+                            'enabled': enabled if enabled is not None else '',
+                            'tags': tags
+                        }))
+
+                elif resource == 'databases':
+                    name = str(row.get('name') or '').strip()
+                    db_type_raw = str(row.get('db_type') or '').strip().lower()
+                    host = str(row.get('host') or '').strip()
+                    port = row.get('port')
+                    database = str(row.get('database') or '').strip()
+                    username = str(row.get('username') or '').strip()
+                    password = str(row.get('password') or '').strip()
+                    enabled_raw = row.get('enabled')
+                    enabled = parse_bool(enabled_raw, None)
+
+                    if not name or not db_type_raw or not host or port is None or not database or not username:
+                        raise ValueError('name/db_type/host/port/database/username 不能为空')
+                    db_type = DatabaseType(db_type_raw)
+                    port = int(port)
+
+                    existing = Database.query.filter_by(db_type=db_type, host=host, port=port, database=database).first()
+                    action = None
+                    if existing:
+                        if mode == 'insert':
+                            raise ValueError('记录已存在（db_type+host+port+database）')
+                        action = 'update'
+                        if not dry_run:
+                            existing.name = name
+                            existing.username = username
+                            if password:
+                                existing.password = password
+                            if enabled is not None:
+                                existing.enabled = enabled
+                    else:
+                        action = 'create'
+                        if not dry_run:
+                            d = Database(
+                                name=name,
+                                db_type=db_type,
+                                host=host,
+                                port=port,
+                                database=database,
+                                username=username,
+                                password=password,
+                                enabled=enabled if enabled is not None else True
+                            )
+                            db.session.add(d)
+
+                    if action == 'create':
+                        created_count += 1
+                    elif action == 'update':
+                        updated_count += 1
+
+                    if dry_run and len(preview) < 20:
+                        preview.append(_mask_preview({
+                            'row': line_no,
+                            'action': action,
+                            'name': name,
+                            'db_type': db_type.value,
+                            'host': host,
+                            'port': port,
+                            'database': database,
+                            'username': username,
+                            'password': password,
+                            'enabled': enabled if enabled is not None else ''
+                        }))
+
+                else:
+                    name = str(row.get('name') or '').strip()
+                    mw_type_raw = str(row.get('mw_type') or '').strip().lower()
+                    host = str(row.get('host') or '').strip()
+                    port = row.get('port')
+                    version = str(row.get('version') or '').strip() or None
+                    enabled_raw = row.get('enabled')
+                    enabled = parse_bool(enabled_raw, None)
+                    meta_raw = row.get('meta')
+                    meta = parse_json(meta_raw, {})
+
+                    if not name or not mw_type_raw or not host or port is None:
+                        raise ValueError('name/mw_type/host/port 不能为空')
+                    mw_type = MiddlewareType(mw_type_raw)
+                    port = int(port)
+
+                    existing = Middleware.query.filter_by(mw_type=mw_type, host=host, port=port).first()
+                    action = None
+                    if existing:
+                        if mode == 'insert':
+                            raise ValueError('记录已存在（mw_type+host+port）')
+                        action = 'update'
+                        if not dry_run:
+                            existing.name = name
+                            existing.version = version
+                            if enabled is not None:
+                                existing.enabled = enabled
+                            if str(meta_raw or '').strip() != '':
+                                existing.meta = meta
+                    else:
+                        action = 'create'
+                        if not dry_run:
+                            m = Middleware(
+                                name=name,
+                                mw_type=mw_type,
+                                host=host,
+                                port=port,
+                                version=version,
+                                enabled=enabled if enabled is not None else True,
+                                meta=meta
+                            )
+                            db.session.add(m)
+
+                    if action == 'create':
+                        created_count += 1
+                    elif action == 'update':
+                        updated_count += 1
+
+                    if dry_run and len(preview) < 20:
+                        preview.append({
+                            'row': line_no,
+                            'action': action,
+                            'name': name,
+                            'mw_type': mw_type.value,
+                            'host': host,
+                            'port': port,
+                            'version': version,
+                            'enabled': enabled if enabled is not None else '',
+                            'meta': meta
+                        })
+
         except Exception as e:
-            failed += 1
-            errors.append({'row': idx, 'error': str(e)})
+            errors.append({'row': line_no, 'error': str(e)})
+            skipped_count += 1
 
     if dry_run:
         return jsonify({
             'resource': resource,
             'dry_run': True,
+            'mode': mode,
             'total': total,
-            'success': success,
-            'failed': failed,
-            'errors': errors
+            'created': created_count,
+            'updated': updated_count,
+            'failed': len(errors),
+            'errors': errors,
+            'preview': preview
         })
-
-    inserted = 0
-    for obj in created:
-        try:
-            with db.session.begin_nested():
-                db.session.add(obj)
-            inserted += 1
-        except Exception as e:
-            errors.append({'row': None, 'error': str(e)})
 
     db.session.commit()
 
     return jsonify({
         'resource': resource,
         'dry_run': False,
+        'mode': mode,
         'total': total,
-        'success': inserted,
-        'failed': total - inserted,
+        'created': created_count,
+        'updated': updated_count,
+        'success': created_count + updated_count,
+        'failed': len(errors),
         'errors': errors
     })

@@ -12,7 +12,12 @@
         <el-table-column prop="created_at" label="创建时间" min-width="180" />
         <el-table-column label="结果" min-width="260">
           <template #default="{ row }">
-            <span class="muted">{{ row.result?.message || '-' }}</span>
+            <span class="muted">{{ row.result?.message || row.error_message || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="详情" width="120">
+          <template #default="{ row }">
+            <el-button text @click="view(row)">查看</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -27,13 +32,19 @@
         </el-form-item>
         <el-form-item label="动作" prop="action">
           <el-select v-model="form.action" style="width:100%">
-            <el-option label="执行脚本（演示）" value="exec-script" />
+            <el-option label="执行命令（SSH）" value="exec-script" />
+            <el-option label="重启服务（SSH）" value="restart-service" />
             <el-option label="下发文件（演示）" value="push-file" />
-            <el-option label="重启服务（演示）" value="restart-service" />
           </el-select>
         </el-form-item>
-        <el-form-item label="参数（JSON）">
-          <el-input v-model="form.params" type="textarea" :rows="4" placeholder='例如：{"script":"uptime"}' />
+        <el-form-item v-if="form.action === 'exec-script'" label="命令" prop="command">
+          <el-input v-model="form.command" placeholder="例如：uname -a 或 uptime" />
+        </el-form-item>
+        <el-form-item v-if="form.action === 'restart-service'" label="服务名" prop="service">
+          <el-input v-model="form.service" placeholder="例如：nginx" />
+        </el-form-item>
+        <el-form-item v-if="form.action === 'push-file'" label="参数（JSON）">
+          <el-input v-model="form.params" type="textarea" :rows="4" placeholder='例如：{"path":"/tmp/a.txt"}' />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -41,12 +52,19 @@
         <el-button type="primary" :loading="saving" @click="onSave">提交</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="detailVisible" title="任务详情" width="760px">
+      <el-input v-model="detailText" type="textarea" :rows="16" readonly />
+      <template #footer>
+        <el-button @click="detailVisible=false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { hostAPI, opsAPI } from '@/api/services'
 
 const tasks = ref([])
@@ -56,9 +74,14 @@ const dialogVisible = ref(false)
 const saving = ref(false)
 const formRef = ref()
 
+const detailVisible = ref(false)
+const detailText = ref('')
+
 const form = reactive({
   target_ids: [],
   action: 'exec-script',
+  command: '',
+  service: '',
   params: ''
 })
 
@@ -76,6 +99,8 @@ const load = async () => {
 const openCreate = () => {
   form.target_ids = []
   form.action = 'exec-script'
+  form.command = ''
+  form.service = ''
   form.params = ''
   dialogVisible.value = true
   formRef.value?.clearValidate?.()
@@ -84,14 +109,30 @@ const openCreate = () => {
 const onSave = async () => {
   await formRef.value?.validate(async (valid) => {
     if (!valid) return
+    let payload = { target_ids: form.target_ids }
+    if (form.action === 'exec-script') {
+      if (!form.command.trim()) {
+        ElMessage.warning('请输入命令')
+        return
+      }
+      payload.command = form.command
+    } else if (form.action === 'restart-service') {
+      if (!form.service.trim()) {
+        ElMessage.warning('请输入服务名')
+        return
+      }
+      payload.service = form.service
+    } else {
+      payload.params = {}
+      if (form.params.trim()) payload.params = JSON.parse(form.params)
+    }
+
     saving.value = true
     try {
-      let paramsObj = {}
-      if (form.params.trim()) paramsObj = JSON.parse(form.params)
       await opsAPI.createTask({
         category: 'server',
         action: form.action,
-        payload: { target_ids: form.target_ids, params: paramsObj }
+        payload
       })
       ElMessage.success('已提交任务')
       dialogVisible.value = false
@@ -102,6 +143,16 @@ const onSave = async () => {
       saving.value = false
     }
   })
+}
+
+const view = async (row) => {
+  try {
+    const data = await opsAPI.getTask(row.id)
+    detailText.value = JSON.stringify(data, null, 2)
+    detailVisible.value = true
+  } catch (e) {
+    ElMessageBox.alert(e.message || '加载失败', '提示')
+  }
 }
 
 onMounted(load)

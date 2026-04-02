@@ -7,9 +7,9 @@ def _serializer(secret_key):
     return URLSafeTimedSerializer(secret_key=secret_key, salt='db-ai-ops-auth')
 
 
-def issue_token(secret_key, username):
+def issue_token(secret_key, user_id, username):
     s = _serializer(secret_key)
-    return s.dumps({'u': username})
+    return s.dumps({'uid': user_id, 'u': username})
 
 
 def verify_token(secret_key, token):
@@ -17,7 +17,11 @@ def verify_token(secret_key, token):
     try:
         ttl = int(os.getenv('ADMIN_TOKEN_TTL_SECONDS', '86400'))
         data = s.loads(token, max_age=ttl)
-        return data.get('u')
+        uid = data.get('uid')
+        username = data.get('u')
+        if not uid or not username:
+            return None
+        return {'id': uid, 'username': username}
     except (BadSignature, SignatureExpired):
         return None
 

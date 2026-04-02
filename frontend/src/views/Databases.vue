@@ -96,6 +96,9 @@
         <el-button @click="downloadTemplate('csv')">下载 CSV 模板</el-button>
         <el-button @click="downloadTemplate('xlsx')">下载 Excel 模板</el-button>
         <el-button @click="downloadTemplate('txt')">下载 TXT 模板</el-button>
+        <div class="spacer" />
+        <span class="muted">更新已存在</span>
+        <el-switch v-model="importUpsert" />
       </div>
 
       <el-upload
@@ -118,10 +121,20 @@
         <el-divider />
         <el-descriptions :column="4" border>
           <el-descriptions-item label="总行数">{{ importResult.total }}</el-descriptions-item>
-          <el-descriptions-item label="成功">{{ importResult.success }}</el-descriptions-item>
-          <el-descriptions-item label="失败">{{ importResult.failed }}</el-descriptions-item>
+          <el-descriptions-item label="新增">{{ importResult.created ?? 0 }}</el-descriptions-item>
+          <el-descriptions-item label="更新">{{ importResult.updated ?? 0 }}</el-descriptions-item>
           <el-descriptions-item label="资源">{{ importResult.resource }}</el-descriptions-item>
         </el-descriptions>
+
+        <el-table v-if="(importResult.preview || []).length" :data="importResult.preview" stripe class="error-table">
+          <el-table-column prop="row" label="行号" width="90" />
+          <el-table-column prop="action" label="动作" width="110" />
+          <el-table-column prop="name" label="名称" min-width="160" />
+          <el-table-column prop="db_type" label="类型" width="140" />
+          <el-table-column prop="host" label="主机" min-width="160" />
+          <el-table-column prop="port" label="端口" width="90" />
+          <el-table-column prop="database" label="数据库" min-width="160" />
+        </el-table>
 
         <el-table v-if="(importResult.errors || []).length" :data="importResult.errors" stripe class="error-table">
           <el-table-column prop="row" label="行号" width="90" />
@@ -131,6 +144,7 @@
 
       <template #footer>
         <el-button @click="importVisible=false">关闭</el-button>
+        <el-button :loading="importing" :disabled="!selectedFile" @click="doPreview">预览校验</el-button>
         <el-button type="primary" :loading="importing" :disabled="!selectedFile" @click="doImport">开始导入</el-button>
       </template>
     </el-dialog>
@@ -154,6 +168,7 @@ const importing = ref(false)
 const selectedFile = ref(null)
 const fileList = ref([])
 const importResult = ref(null)
+const importUpsert = ref(false)
 
 const form = ref({
   name: '',
@@ -311,12 +326,26 @@ const doImport = async () => {
   if (!selectedFile.value) return
   importing.value = true
   try {
-    const res = await importAPI.importFile('databases', selectedFile.value, false)
+    const res = await importAPI.importFile('databases', selectedFile.value, { dryRun: false, mode: importUpsert.value ? 'upsert' : 'insert' })
     importResult.value = res
     ElMessage.success('导入完成')
     await loadDatabases()
   } catch (e) {
     ElMessage.error(e.message || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+
+const doPreview = async () => {
+  if (!selectedFile.value) return
+  importing.value = true
+  try {
+    const res = await importAPI.importFile('databases', selectedFile.value, { dryRun: true, mode: importUpsert.value ? 'upsert' : 'insert' })
+    importResult.value = res
+    ElMessage.success('校验完成')
+  } catch (e) {
+    ElMessage.error(e.message || '校验失败')
   } finally {
     importing.value = false
   }
@@ -349,6 +378,15 @@ onMounted(() => {
   display: flex;
   gap: 10px;
   margin: 12px 0;
+  align-items: center;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.muted {
+  color: #64748b;
 }
 
 .error-table {

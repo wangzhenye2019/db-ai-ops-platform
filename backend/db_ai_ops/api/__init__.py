@@ -2,6 +2,7 @@ from .backup_bp import backup_bp
 from .schedule_bp import schedule_bp
 from .database_bp import database_bp
 from .auth_bp import auth_bp
+from .users_bp import users_bp
 from .hosts_bp import hosts_bp
 from .middleware_bp import middleware_bp
 from .kb_bp import kb_bp
@@ -15,6 +16,7 @@ __all__ = [
     'schedule_bp',
     'database_bp',
     'auth_bp',
+    'users_bp',
     'hosts_bp',
     'middleware_bp',
     'kb_bp',
