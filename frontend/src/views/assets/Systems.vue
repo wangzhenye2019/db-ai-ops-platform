@@ -19,6 +19,7 @@
             <el-tag class="tag" type="info">主机 {{ row.counts?.hosts || 0 }}</el-tag>
             <el-tag class="tag" type="info">数据库 {{ row.counts?.databases || 0 }}</el-tag>
             <el-tag class="tag" type="info">中间件 {{ row.counts?.middlewares || 0 }}</el-tag>
+            <el-tag class="tag" type="info">IP {{ row.counts?.ips || 0 }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="启用" width="100">
@@ -29,6 +30,7 @@
         <el-table-column label="操作" width="220">
           <template #default="{ row }">
             <el-button text @click="openContacts(row)">联系人</el-button>
+            <el-button text @click="openLinks(row)">关联资产</el-button>
             <el-button text @click="openEdit(row)">编辑</el-button>
             <el-button text type="danger" @click="onDelete(row)">删除</el-button>
           </template>
@@ -128,13 +130,129 @@
         <el-button @click="contactsVisible=false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="linksVisible" :title="linksTitle" width="980px">
+      <el-tabs v-model="linkTab">
+        <el-tab-pane label="主机" name="host">
+          <el-select v-model="selectHostIds" multiple filterable style="width:100%" placeholder="选择主机额外关联到该业务系统">
+            <el-option v-for="h in allHosts" :key="h.id" :label="`${h.name} (${h.host}:${h.port})`" :value="h.id" />
+          </el-select>
+          <div class="link-actions">
+            <el-button @click="refreshLinks">刷新</el-button>
+            <el-button type="primary" :loading="savingLinks" @click="addSelectedLinks('host')">添加关联</el-button>
+          </div>
+          <el-table :data="systemAssets.hosts" stripe class="link-table">
+            <el-table-column prop="name" label="名称" min-width="180" />
+            <el-table-column prop="host" label="IP/域名" min-width="160" />
+            <el-table-column prop="port" label="端口" width="90" />
+            <el-table-column label="关联" width="120">
+              <template #default="{ row }">
+                <el-tag :type="isLinked('host', row.id) ? 'warning' : 'success'">{{ isLinked('host', row.id) ? '额外关联' : '主关联' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="140">
+              <template #default="{ row }">
+                <el-button v-if="isLinked('host', row.id)" text type="danger" @click="removeLink('host', row.id)">移除</el-button>
+                <span v-else class="muted">-</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="数据库" name="database">
+          <el-select v-model="selectDbIds" multiple filterable style="width:100%" placeholder="选择数据库额外关联到该业务系统">
+            <el-option v-for="d in allDatabases" :key="d.id" :label="`${d.name} (${d.db_type}@${d.host}:${d.port}/${d.database})`" :value="d.id" />
+          </el-select>
+          <div class="link-actions">
+            <el-button @click="refreshLinks">刷新</el-button>
+            <el-button type="primary" :loading="savingLinks" @click="addSelectedLinks('database')">添加关联</el-button>
+          </div>
+          <el-table :data="systemAssets.databases" stripe class="link-table">
+            <el-table-column prop="name" label="名称" min-width="180" />
+            <el-table-column prop="db_type" label="类型" width="120" />
+            <el-table-column prop="host" label="主机" min-width="160" />
+            <el-table-column prop="port" label="端口" width="90" />
+            <el-table-column prop="database" label="数据库" min-width="160" />
+            <el-table-column label="关联" width="120">
+              <template #default="{ row }">
+                <el-tag :type="isLinked('database', row.id) ? 'warning' : 'success'">{{ isLinked('database', row.id) ? '额外关联' : '主关联' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="140">
+              <template #default="{ row }">
+                <el-button v-if="isLinked('database', row.id)" text type="danger" @click="removeLink('database', row.id)">移除</el-button>
+                <span v-else class="muted">-</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="中间件" name="middleware">
+          <el-select v-model="selectMwIds" multiple filterable style="width:100%" placeholder="选择中间件额外关联到该业务系统">
+            <el-option v-for="m in allMiddlewares" :key="m.id" :label="`${m.name} (${m.mw_type}@${m.host}:${m.port})`" :value="m.id" />
+          </el-select>
+          <div class="link-actions">
+            <el-button @click="refreshLinks">刷新</el-button>
+            <el-button type="primary" :loading="savingLinks" @click="addSelectedLinks('middleware')">添加关联</el-button>
+          </div>
+          <el-table :data="systemAssets.middlewares" stripe class="link-table">
+            <el-table-column prop="name" label="名称" min-width="180" />
+            <el-table-column prop="mw_type" label="类型" width="140" />
+            <el-table-column prop="host" label="主机" min-width="160" />
+            <el-table-column prop="port" label="端口" width="90" />
+            <el-table-column label="关联" width="120">
+              <template #default="{ row }">
+                <el-tag :type="isLinked('middleware', row.id) ? 'warning' : 'success'">{{ isLinked('middleware', row.id) ? '额外关联' : '主关联' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="140">
+              <template #default="{ row }">
+                <el-button v-if="isLinked('middleware', row.id)" text type="danger" @click="removeLink('middleware', row.id)">移除</el-button>
+                <span v-else class="muted">-</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="IP" name="ip">
+          <el-select v-model="selectIpIds" multiple filterable style="width:100%" placeholder="选择IP额外关联到该业务系统">
+            <el-option v-for="i in allIps" :key="i.id" :label="i.cidr ? `${i.ip}/${i.cidr}` : i.ip" :value="i.id" />
+          </el-select>
+          <div class="link-actions">
+            <el-button @click="refreshLinks">刷新</el-button>
+            <el-button type="primary" :loading="savingLinks" @click="addSelectedLinks('ip')">添加关联</el-button>
+          </div>
+          <el-table :data="systemAssets.ips" stripe class="link-table">
+            <el-table-column prop="ip" label="IP" width="160" />
+            <el-table-column prop="cidr" label="掩码" width="100" />
+            <el-table-column prop="status" label="状态" width="120" />
+            <el-table-column prop="idc_name" label="机房" width="160" />
+            <el-table-column label="关联" width="120">
+              <template #default="{ row }">
+                <el-tag :type="isLinked('ip', row.id) ? 'warning' : 'success'">{{ isLinked('ip', row.id) ? '额外关联' : '主关联' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="140">
+              <template #default="{ row }">
+                <el-button v-if="isLinked('ip', row.id)" text type="danger" @click="removeLink('ip', row.id)">移除</el-button>
+                <span v-else class="muted">-</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
+
+      <template #footer>
+        <el-button @click="linksVisible=false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { systemsAPI } from '@/api/services'
+import { databaseAPI, hostAPI, ipAPI, middlewareAPI, systemsAPI } from '@/api/services'
 
 const systems = ref([])
 const dialogVisible = ref(false)
@@ -315,6 +433,128 @@ const deleteContact = async (row) => {
   }
 }
 
+const linksVisible = ref(false)
+const linksSystemId = ref(null)
+const linkTab = ref('host')
+const savingLinks = ref(false)
+
+const linksTitle = computed(() => {
+  const s = systems.value.find(x => x.id === linksSystemId.value)
+  return s ? `关联资产 - ${s.name}` : '关联资产'
+})
+
+const allHosts = ref([])
+const allDatabases = ref([])
+const allMiddlewares = ref([])
+const allIps = ref([])
+
+const systemAssets = reactive({
+  hosts: [],
+  databases: [],
+  middlewares: [],
+  ips: []
+})
+
+const linkedIds = ref({
+  host: new Set(),
+  database: new Set(),
+  middleware: new Set(),
+  ip: new Set()
+})
+
+const selectHostIds = ref([])
+const selectDbIds = ref([])
+const selectMwIds = ref([])
+const selectIpIds = ref([])
+
+const isLinked = (type, id) => {
+  const s = linkedIds.value[type]
+  return !!(s && s.has(id))
+}
+
+const refreshLinks = async () => {
+  if (!linksSystemId.value) return
+  try {
+    const [a, l] = await Promise.all([systemsAPI.assets(linksSystemId.value), systemsAPI.listLinks(linksSystemId.value)])
+    systemAssets.hosts = a.hosts || []
+    systemAssets.databases = a.databases || []
+    systemAssets.middlewares = a.middlewares || []
+    systemAssets.ips = a.ips || []
+
+    linkedIds.value = {
+      host: new Set((l.links || []).filter(x => x.asset_type === 'host').map(x => x.asset_id)),
+      database: new Set((l.links || []).filter(x => x.asset_type === 'database').map(x => x.asset_id)),
+      middleware: new Set((l.links || []).filter(x => x.asset_type === 'middleware').map(x => x.asset_id)),
+      ip: new Set((l.links || []).filter(x => x.asset_type === 'ip').map(x => x.asset_id))
+    }
+  } catch (e) {
+    ElMessage.error(e.message || '加载失败')
+  }
+}
+
+const loadAllAssets = async () => {
+  const [h, d, m, i] = await Promise.allSettled([hostAPI.list(), databaseAPI.list(), middlewareAPI.list(), ipAPI.list()])
+  if (h.status === 'fulfilled') allHosts.value = h.value.hosts || []
+  if (d.status === 'fulfilled') allDatabases.value = d.value.databases || []
+  if (m.status === 'fulfilled') allMiddlewares.value = m.value.middlewares || []
+  if (i.status === 'fulfilled') allIps.value = i.value.ips || []
+}
+
+const openLinks = async (row) => {
+  linksSystemId.value = row.id
+  linksVisible.value = true
+  linkTab.value = 'host'
+  selectHostIds.value = []
+  selectDbIds.value = []
+  selectMwIds.value = []
+  selectIpIds.value = []
+  await Promise.all([loadAllAssets(), refreshLinks()])
+}
+
+const addSelectedLinks = async (type) => {
+  if (!linksSystemId.value) return
+  const add = []
+  const ids = type === 'host' ? selectHostIds.value
+    : type === 'database' ? selectDbIds.value
+      : type === 'middleware' ? selectMwIds.value
+        : selectIpIds.value
+  for (const id of ids) add.push({ type, id })
+  if (!add.length) {
+    ElMessage.warning('请选择要关联的资产')
+    return
+  }
+  savingLinks.value = true
+  try {
+    await systemsAPI.updateLinks(linksSystemId.value, { add })
+    ElMessage.success('已关联')
+    if (type === 'host') selectHostIds.value = []
+    if (type === 'database') selectDbIds.value = []
+    if (type === 'middleware') selectMwIds.value = []
+    if (type === 'ip') selectIpIds.value = []
+    await refreshLinks()
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message || '操作失败')
+  } finally {
+    savingLinks.value = false
+  }
+}
+
+const removeLink = async (type, id) => {
+  if (!linksSystemId.value) return
+  savingLinks.value = true
+  try {
+    await systemsAPI.updateLinks(linksSystemId.value, { remove: [{ type, id }] })
+    ElMessage.success('已移除')
+    await refreshLinks()
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message || '操作失败')
+  } finally {
+    savingLinks.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -353,5 +593,20 @@ onMounted(load)
 
 .contacts-table {
   margin-top: 6px;
+}
+
+.link-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 0 12px;
+}
+
+.link-table {
+  margin-top: 6px;
+}
+
+.muted {
+  color: #64748b;
 }
 </style>

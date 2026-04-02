@@ -110,6 +110,17 @@ def test_business_systems_crud_smoke():
     c = client.post(f'/api/systems/{sid}/contacts', json={'name': '李四', 'role': '运维'}, headers=headers)
     assert c.status_code in (201, 400)
 
+    h = client.post('/api/hosts', json={'name': 'h-link', 'host': '10.10.20.10', 'port': 22, 'os_type': 'linux'}, headers=headers)
+    assert h.status_code in (201, 400)
+    hosts = client.get('/api/hosts', headers=headers).get_json().get('hosts') or []
+    hid = hosts[0]['id']
+
+    link = client.post(f'/api/systems/{sid}/links', json={'add': [{'type': 'host', 'id': hid}]}, headers=headers)
+    assert link.status_code == 200
+
+    links = client.get(f'/api/systems/{sid}/links', headers=headers)
+    assert links.status_code == 200
+
 
 def test_credentials_admin_smoke():
     client = _client()

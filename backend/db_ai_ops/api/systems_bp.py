@@ -16,21 +16,29 @@ def list_systems():
     db_counts = {}
     mw_counts = {}
     ip_counts = {}
+    link_counts = {}
     if ids:
         host_counts = dict(db.session.query(Host.business_system_id, func.count(Host.id)).filter(Host.business_system_id.in_(ids)).group_by(Host.business_system_id).all())
         db_counts = dict(db.session.query(Database.business_system_id, func.count(Database.id)).filter(Database.business_system_id.in_(ids)).group_by(Database.business_system_id).all())
         mw_counts = dict(db.session.query(Middleware.business_system_id, func.count(Middleware.id)).filter(Middleware.business_system_id.in_(ids)).group_by(Middleware.business_system_id).all())
         ip_counts = dict(db.session.query(IpAsset.business_system_id, func.count(IpAsset.id)).filter(IpAsset.business_system_id.in_(ids)).group_by(IpAsset.business_system_id).all())
+        rows = (
+            db.session.query(AssetSystemLink.system_id, AssetSystemLink.asset_type, func.count(AssetSystemLink.id))
+            .filter(AssetSystemLink.system_id.in_(ids))
+            .group_by(AssetSystemLink.system_id, AssetSystemLink.asset_type)
+            .all()
+        )
+        link_counts = {(sid, atype): cnt for sid, atype, cnt in rows}
 
     return jsonify({
         'systems': [
             {
                 **s.to_dict(),
                 'counts': {
-                    'hosts': int(host_counts.get(s.id, 0) or 0),
-                    'databases': int(db_counts.get(s.id, 0) or 0),
-                    'middlewares': int(mw_counts.get(s.id, 0) or 0),
-                    'ips': int(ip_counts.get(s.id, 0) or 0)
+                    'hosts': int(host_counts.get(s.id, 0) or 0) + int(link_counts.get((s.id, AssetType.HOST), 0) or 0),
+                    'databases': int(db_counts.get(s.id, 0) or 0) + int(link_counts.get((s.id, AssetType.DATABASE), 0) or 0),
+                    'middlewares': int(mw_counts.get(s.id, 0) or 0) + int(link_counts.get((s.id, AssetType.MIDDLEWARE), 0) or 0),
+                    'ips': int(ip_counts.get(s.id, 0) or 0) + int(link_counts.get((s.id, AssetType.IP), 0) or 0)
                 }
             }
             for s in systems
@@ -171,6 +179,30 @@ def update_links(system_id):
             a_id = int(item.get('id'))
             if not a_type:
                 raise ValueError('Invalid type')
+            if a_type == AssetType.HOST:
+                obj = Host.query.get(a_id)
+                if not obj:
+                    raise ValueError('Host not found')
+                if obj.business_system_id == system_id:
+                    continue
+            elif a_type == AssetType.DATABASE:
+                obj = Database.query.get(a_id)
+                if not obj:
+                    raise ValueError('Database not found')
+                if obj.business_system_id == system_id:
+                    continue
+            elif a_type == AssetType.MIDDLEWARE:
+                obj = Middleware.query.get(a_id)
+                if not obj:
+                    raise ValueError('Middleware not found')
+                if obj.business_system_id == system_id:
+                    continue
+            elif a_type == AssetType.IP:
+                obj = IpAsset.query.get(a_id)
+                if not obj:
+                    raise ValueError('IP not found')
+                if obj.business_system_id == system_id:
+                    continue
             exists = AssetSystemLink.query.filter_by(system_id=system_id, asset_type=a_type, asset_id=a_id).first()
             if exists:
                 continue

@@ -21,7 +21,12 @@
             <el-option v-for="g in groups" :key="g.id" :label="g.name" :value="g.id" />
           </el-select>
         </el-col>
-        <el-col :span="12">
+        <el-col :span="6">
+          <el-select v-model="systemId" style="width:100%" placeholder="业务系统" clearable filterable>
+            <el-option v-for="s in systems" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-col>
+        <el-col :span="6">
           <el-input v-model="q" placeholder="搜索（名称/地址）" clearable @keyup.enter="load" />
         </el-col>
       </el-row>
@@ -57,28 +62,37 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { assetsAPI } from '@/api/services'
+import { assetsAPI, systemsAPI } from '@/api/services'
 
 const assets = ref([])
 const groups = ref([])
+const systems = ref([])
 const type = ref('')
 const groupId = ref(null)
+const systemId = ref(null)
 const q = ref('')
 
 const load = async () => {
   try {
-    const [g, a] = await Promise.all([
+    const [g, s, a] = await Promise.all([
       assetsAPI.listGroups(),
-      assetsAPI.listAssets({ type: type.value || undefined, group_id: groupId.value || undefined, q: q.value || undefined })
+      systemsAPI.list(),
+      assetsAPI.listAssets({
+        type: type.value || undefined,
+        group_id: groupId.value || undefined,
+        system_id: systemId.value || undefined,
+        q: q.value || undefined
+      })
     ])
     groups.value = g.groups || []
+    systems.value = s.systems || []
     assets.value = a.assets || []
   } catch (e) {
     ElMessage.error(e.message || '加载失败')
   }
 }
 
-watch([type, groupId], () => load())
+watch([type, groupId, systemId], () => load())
 
 onMounted(load)
 </script>
