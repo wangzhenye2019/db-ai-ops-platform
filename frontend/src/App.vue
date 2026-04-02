@@ -3,25 +3,22 @@
     <el-aside width="220px">
       <div class="logo">
         <el-icon><Coin /></el-icon>
-        <span>数据库AI自动化运维平台</span>
+        <span>AI智能运维平台</span>
       </div>
       <el-menu :default-active="activeMenu" router class="sidebar">
         <el-menu-item index="/dashboard">
           <el-icon><DataLine /></el-icon>
           <span>首页</span>
         </el-menu-item>
-        <el-menu-item index="/databases">
-          <el-icon><DataBoard /></el-icon>
-          <span>数据库</span>
-        </el-menu-item>
-        <el-menu-item index="/backups">
-          <el-icon><DocumentCopy /></el-icon>
-          <span>备份</span>
-        </el-menu-item>
-        <el-menu-item index="/schedules">
-          <el-icon><Timer /></el-icon>
-          <span>定时</span>
-        </el-menu-item>
+        <el-sub-menu index="/database">
+          <template #title>
+            <el-icon><DataBoard /></el-icon>
+            <span>数据库</span>
+          </template>
+          <el-menu-item index="/databases">数据库管理</el-menu-item>
+          <el-menu-item index="/backups">备份记录</el-menu-item>
+          <el-menu-item index="/schedules">定时任务</el-menu-item>
+        </el-sub-menu>
 
         <el-sub-menu index="/servers">
           <template #title>
@@ -29,6 +26,8 @@
             <span>服务器</span>
           </template>
           <el-menu-item index="/servers/hosts">主机添加</el-menu-item>
+          <el-menu-item index="/servers/backups">备份</el-menu-item>
+          <el-menu-item index="/servers/schedules">定时</el-menu-item>
           <el-menu-item index="/servers/batch-ops">批量运维</el-menu-item>
           <el-menu-item index="/servers/batch-inspection">批量巡检</el-menu-item>
           <el-menu-item index="/servers/knowledge">知识库</el-menu-item>
@@ -58,6 +57,11 @@
           <el-menu-item index="/inspection/one-click">一键巡检</el-menu-item>
           <el-menu-item index="/inspection/reports">巡检报告</el-menu-item>
         </el-sub-menu>
+
+        <el-menu-item index="/about">
+          <el-icon><InfoFilled /></el-icon>
+          <span>关于我们</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

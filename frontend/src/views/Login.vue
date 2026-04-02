@@ -2,7 +2,7 @@
   <div class="login-page">
     <div class="login-card">
       <div class="title">
-        <div class="title-main">数据库AI自动化运维平台</div>
+        <div class="title-main">AI智能运维平台</div>
         <div class="title-sub">管理员登录</div>
       </div>
 

@@ -6,6 +6,8 @@ import Schedules from '@/views/Schedules.vue'
 import Login from '@/views/Login.vue'
 import { getToken } from '@/utils/auth'
 import Hosts from '@/views/servers/Hosts.vue'
+import ServerBackups from '@/views/servers/Backups.vue'
+import ServerSchedules from '@/views/servers/Schedules.vue'
 import HostBatchOps from '@/views/servers/BatchOps.vue'
 import HostBatchInspection from '@/views/servers/BatchInspection.vue'
 import HostKnowledge from '@/views/servers/Knowledge.vue'
@@ -16,6 +18,7 @@ import MiddlewareKnowledge from '@/views/middleware/Knowledge.vue'
 import DataMigration from '@/views/DataMigration.vue'
 import OneClickInspection from '@/views/inspection/OneClick.vue'
 import InspectionReports from '@/views/inspection/Reports.vue'
+import About from '@/views/About.vue'
 
 const routes = [
   {
@@ -50,6 +53,16 @@ const routes = [
   {
     path: '/servers/hosts',
     component: Hosts,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/servers/backups',
+    component: ServerBackups,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/servers/schedules',
+    component: ServerSchedules,
     meta: { requiresAuth: true }
   },
   {
@@ -100,6 +113,11 @@ const routes = [
   {
     path: '/inspection/reports',
     component: InspectionReports,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/about',
+    component: About,
     meta: { requiresAuth: true }
   }
 ]
