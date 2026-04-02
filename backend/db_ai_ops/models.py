@@ -507,6 +507,56 @@ class AuditLog(db.Model):
         }
 
 
+class AgentRole(enum.Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    TOOL = "tool"
+
+
+class AgentSession(db.Model):
+    __tablename__ = 'agent_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200))
+    state = db.Column(db.JSON)
+    created_by = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    messages = db.relationship('AgentMessage', backref='session', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'state': self.state or {},
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+
+class AgentMessage(db.Model):
+    __tablename__ = 'agent_messages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('agent_sessions.id'), nullable=False, index=True)
+    role = db.Column(db.Enum(AgentRole), nullable=False)
+    content = db.Column(db.Text)
+    meta = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'session_id': self.session_id,
+            'role': self.role.value if self.role else None,
+            'content': self.content,
+            'meta': self.meta or {},
+            'created_at': self.created_at.isoformat()
+        }
+
+
 class AssetType(enum.Enum):
     HOST = "host"
     DATABASE = "database"
@@ -677,3 +727,23 @@ class AssetGroupMember(db.Model):
             'asset_id': self.asset_id,
             'created_at': self.created_at.isoformat()
         }
+
+
+class XxlJobTrigger(db.Model):
+    __tablename__ = 'xxl_job_triggers'
+
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.BigInteger, index=True)
+    log_id = db.Column(db.BigInteger, unique=True, index=True, nullable=False)
+    log_datetime = db.Column(db.BigInteger)
+    executor_handler = db.Column(db.String(200), nullable=False)
+    executor_params = db.Column(db.JSON)
+    executor_params_raw = db.Column(db.Text)
+    status = db.Column(db.String(20), default='queued', nullable=False)
+    celery_task_id = db.Column(db.String(64))
+    handle_code = db.Column(db.Integer)
+    handle_msg = db.Column(db.Text)
+    log_file = db.Column(db.String(512))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime)
+    finished_at = db.Column(db.DateTime)

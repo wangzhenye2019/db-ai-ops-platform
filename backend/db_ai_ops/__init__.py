@@ -117,7 +117,8 @@ def create_app(config_class=Config):
             systems_bp,
             creds_bp,
             dict_bp,
-            ip_bp
+            ip_bp,
+            agent_bp
         )
 
         app.register_blueprint(backup_bp, url_prefix='/api')
@@ -137,6 +138,10 @@ def create_app(config_class=Config):
         app.register_blueprint(creds_bp, url_prefix='/api')
         app.register_blueprint(dict_bp, url_prefix='/api')
         app.register_blueprint(ip_bp, url_prefix='/api')
+        app.register_blueprint(agent_bp, url_prefix='/api')
+
+    from db_ai_ops.xxl_job.bp import xxl_job_bp
+    app.register_blueprint(xxl_job_bp, url_prefix='/xxl-job')
 
     Config.init_app(app)
     return app

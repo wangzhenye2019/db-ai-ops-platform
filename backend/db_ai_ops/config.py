@@ -25,6 +25,13 @@ class Config:
 
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
 
+    XXL_JOB_ADMIN_ADDRESSES = os.getenv('XXL_JOB_ADMIN_ADDRESSES', '')
+    XXL_JOB_ACCESS_TOKEN = os.getenv('XXL_JOB_ACCESS_TOKEN', '')
+    XXL_JOB_LOG_FOLDER = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', '..', 'logs', 'xxl-job')
+    )
+
     @staticmethod
     def init_app(app):
         os.makedirs(Config.BACKUP_FOLDER, exist_ok=True)
+        os.makedirs(Config.XXL_JOB_LOG_FOLDER, exist_ok=True)
