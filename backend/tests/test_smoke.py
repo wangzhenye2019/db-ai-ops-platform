@@ -60,3 +60,30 @@ def test_import_hosts_dry_run():
     assert body['dry_run'] is True
     assert body['created'] == 1
     assert len(body.get('preview') or []) >= 1
+
+
+def test_asset_groups_and_members():
+    client = _client()
+    token = _login(client)
+    headers = {'Authorization': f'Bearer {token}'}
+
+    r = client.post('/api/assets/groups', json={'name': 'g1', 'description': 'demo'}, headers=headers)
+    assert r.status_code in (201, 400)
+
+    groups = client.get('/api/assets/groups', headers=headers)
+    assert groups.status_code == 200
+    gid = (groups.get_json().get('groups') or [])[0]['id']
+
+    h = client.post('/api/hosts', json={'name': 'h-asset', 'host': '10.10.10.10', 'port': 22, 'os_type': 'linux'}, headers=headers)
+    assert h.status_code in (201, 400)
+    hosts = client.get('/api/hosts', headers=headers).get_json().get('hosts') or []
+    hid = hosts[0]['id']
+
+    r2 = client.post(f'/api/assets/groups/{gid}/members', json={'add': [{'type': 'host', 'id': hid}]}, headers=headers)
+    assert r2.status_code == 200
+
+    members = client.get(f'/api/assets/groups/{gid}/members', headers=headers)
+    assert members.status_code == 200
+
+    assets = client.get(f'/api/assets?group_id={gid}', headers=headers)
+    assert assets.status_code == 200

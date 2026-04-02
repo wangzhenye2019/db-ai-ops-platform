@@ -18,7 +18,7 @@
 </template>
 
 <script setup>
-const version = 'v0.4.2'
+const version = 'v0.4.3'
 </script>
 
 <style scoped>

@@ -361,3 +361,53 @@ class AuditLog(db.Model):
             'ip': self.ip,
             'created_at': self.created_at.isoformat()
         }
+
+
+class AssetType(enum.Enum):
+    HOST = "host"
+    DATABASE = "database"
+    MIDDLEWARE = "middleware"
+
+
+class AssetGroup(db.Model):
+    __tablename__ = 'asset_groups'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    members = db.relationship('AssetGroupMember', backref='group', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+
+class AssetGroupMember(db.Model):
+    __tablename__ = 'asset_group_members'
+
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('asset_groups.id'), nullable=False)
+    asset_type = db.Column(db.Enum(AssetType), nullable=False)
+    asset_id = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('group_id', 'asset_type', 'asset_id', name='uq_group_asset'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'group_id': self.group_id,
+            'asset_type': self.asset_type.value if self.asset_type else None,
+            'asset_id': self.asset_id,
+            'created_at': self.created_at.isoformat()
+        }

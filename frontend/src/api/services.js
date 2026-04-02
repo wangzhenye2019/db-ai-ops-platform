@@ -114,6 +114,17 @@ export const auditAPI = {
   list: (params) => api.get('/audit/logs', { params })
 }
 
+export const assetsAPI = {
+  summary: () => api.get('/assets/summary'),
+  listAssets: (params) => api.get('/assets', { params }),
+  listGroups: () => api.get('/assets/groups'),
+  createGroup: (data) => api.post('/assets/groups', data),
+  updateGroup: (id, data) => api.put(`/assets/groups/${id}`, data),
+  deleteGroup: (id) => api.delete(`/assets/groups/${id}`),
+  listGroupMembers: (id) => api.get(`/assets/groups/${id}/members`),
+  updateGroupMembers: (id, data) => api.post(`/assets/groups/${id}/members`, data)
+}
+
 export const importAPI = {
   downloadTemplate: (resource, format) =>
     api.get(`/import/templates/${resource}`, { params: { format }, responseType: 'blob' }),

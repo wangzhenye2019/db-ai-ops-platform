@@ -10,6 +10,7 @@ from .ops_bp import ops_bp
 from .inspection_bp import inspection_bp
 from .audit_bp import audit_bp
 from .import_bp import import_bp
+from .assets_bp import assets_bp
 
 __all__ = [
     'backup_bp',
@@ -23,5 +24,6 @@ __all__ = [
     'ops_bp',
     'inspection_bp',
     'audit_bp',
-    'import_bp'
+    'import_bp',
+    'assets_bp'
 ]

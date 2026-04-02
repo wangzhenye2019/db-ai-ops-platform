@@ -10,6 +10,15 @@
           <el-icon><DataLine /></el-icon>
           <span>首页</span>
         </el-menu-item>
+        <el-sub-menu index="/assets">
+          <template #title>
+            <el-icon><Collection /></el-icon>
+            <span>资产管理</span>
+          </template>
+          <el-menu-item index="/assets/overview">资产总览</el-menu-item>
+          <el-menu-item index="/assets/groups">资产分组</el-menu-item>
+          <el-menu-item index="/assets/list">资产列表</el-menu-item>
+        </el-sub-menu>
         <el-sub-menu index="/database">
           <template #title>
             <el-icon><DataBoard /></el-icon>

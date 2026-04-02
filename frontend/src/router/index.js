@@ -5,6 +5,9 @@ import Backups from '@/views/Backups.vue'
 import Schedules from '@/views/Schedules.vue'
 import Login from '@/views/Login.vue'
 import { getToken } from '@/utils/auth'
+import AssetsOverview from '@/views/assets/Overview.vue'
+import AssetGroups from '@/views/assets/Groups.vue'
+import AssetList from '@/views/assets/List.vue'
 import Hosts from '@/views/servers/Hosts.vue'
 import ServerBackups from '@/views/servers/Backups.vue'
 import ServerSchedules from '@/views/servers/Schedules.vue'
@@ -33,6 +36,21 @@ const routes = [
   {
     path: '/dashboard',
     component: Dashboard,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/assets/overview',
+    component: AssetsOverview,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/assets/groups',
+    component: AssetGroups,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/assets/list',
+    component: AssetList,
     meta: { requiresAuth: true }
   },
   {
