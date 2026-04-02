@@ -59,6 +59,35 @@ class User(db.Model):
         }
 
 
+class BusinessSystem(db.Model):
+    __tablename__ = 'business_systems'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    code = db.Column(db.String(60), unique=True)
+    owner = db.Column(db.String(100))
+    owner_contact = db.Column(db.String(100))
+    description = db.Column(db.String(255))
+    tags = db.Column(db.JSON)
+    enabled = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'code': self.code,
+            'owner': self.owner,
+            'owner_contact': self.owner_contact,
+            'description': self.description,
+            'tags': self.tags or [],
+            'enabled': self.enabled,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+
 class DatabaseType(enum.Enum):
     MYSQL = "mysql"
     POSTGRESQL = "postgresql"
@@ -77,10 +106,16 @@ class Database(db.Model):
     database = db.Column(db.String(100), nullable=False)
     username = db.Column(db.String(100), nullable=False)
     password = db.Column(db.String(255), nullable=False)
+    business_system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'))
+    owner = db.Column(db.String(100))
+    env = db.Column(db.String(50))
+    version = db.Column(db.String(50))
+    remark = db.Column(db.String(255))
     enabled = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    business_system = db.relationship('BusinessSystem', lazy='joined')
     backups = db.relationship('Backup', backref='database', lazy=True, cascade='all, delete-orphan')
     schedules = db.relationship('Schedule', backref='database', lazy=True, cascade='all, delete-orphan')
 
@@ -93,6 +128,12 @@ class Database(db.Model):
             'port': self.port,
             'database': self.database,
             'username': self.username,
+            'business_system_id': self.business_system_id,
+            'business_system_name': self.business_system.name if self.business_system else None,
+            'owner': self.owner,
+            'env': self.env,
+            'version': self.version,
+            'remark': self.remark,
             'enabled': self.enabled,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
@@ -174,12 +215,21 @@ class Host(db.Model):
     host = db.Column(db.String(255), nullable=False)
     port = db.Column(db.Integer, nullable=False, default=22)
     os_type = db.Column(db.Enum(HostOSType), nullable=False, default=HostOSType.LINUX)
+    hostname = db.Column(db.String(255))
+    os_version = db.Column(db.String(100))
     username = db.Column(db.String(100))
     password = db.Column(db.String(255))
+    business_system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'))
+    owner = db.Column(db.String(100))
+    env = db.Column(db.String(50))
+    idc = db.Column(db.String(100))
+    remark = db.Column(db.String(255))
     tags = db.Column(db.JSON)
     enabled = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    business_system = db.relationship('BusinessSystem', lazy='joined')
 
     def to_dict(self):
         return {
@@ -188,7 +238,15 @@ class Host(db.Model):
             'host': self.host,
             'port': self.port,
             'os_type': self.os_type.value if self.os_type else None,
+            'hostname': self.hostname,
+            'os_version': self.os_version,
             'username': self.username,
+            'business_system_id': self.business_system_id,
+            'business_system_name': self.business_system.name if self.business_system else None,
+            'owner': self.owner,
+            'env': self.env,
+            'idc': self.idc,
+            'remark': self.remark,
             'enabled': self.enabled,
             'tags': self.tags or [],
             'created_at': self.created_at.isoformat(),
@@ -216,10 +274,16 @@ class Middleware(db.Model):
     host = db.Column(db.String(255), nullable=False)
     port = db.Column(db.Integer, nullable=False)
     version = db.Column(db.String(50))
+    business_system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'))
+    owner = db.Column(db.String(100))
+    env = db.Column(db.String(50))
+    remark = db.Column(db.String(255))
     enabled = db.Column(db.Boolean, default=True)
     meta = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    business_system = db.relationship('BusinessSystem', lazy='joined')
 
     def to_dict(self):
         return {
@@ -229,6 +293,11 @@ class Middleware(db.Model):
             'host': self.host,
             'port': self.port,
             'version': self.version,
+            'business_system_id': self.business_system_id,
+            'business_system_name': self.business_system.name if self.business_system else None,
+            'owner': self.owner,
+            'env': self.env,
+            'remark': self.remark,
             'enabled': self.enabled,
             'meta': self.meta or {},
             'created_at': self.created_at.isoformat(),

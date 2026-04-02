@@ -33,7 +33,11 @@ def create_middleware():
         mw_type=mw_type,
         host=host,
         port=int(port),
-        version=data.get('version'),
+        version=(data.get('version') or '').strip() or None,
+        business_system_id=int(data['business_system_id']) if data.get('business_system_id') else None,
+        owner=(data.get('owner') or '').strip() or None,
+        env=(data.get('env') or '').strip() or None,
+        remark=(data.get('remark') or '').strip() or None,
         enabled=bool(data.get('enabled', True)),
         meta=data.get('meta') or {}
     )
@@ -53,9 +57,12 @@ def update_middleware(mw_id):
     m = Middleware.query.get_or_404(mw_id)
     data = request.get_json() or {}
 
-    for field in ['name', 'host', 'version']:
+    for field in ['name', 'host', 'version', 'owner', 'env', 'remark']:
         if field in data:
-            setattr(m, field, data[field])
+            val = data[field]
+            if isinstance(val, str):
+                val = val.strip()
+            setattr(m, field, val or None)
 
     if 'port' in data:
         m.port = int(data['port'])
@@ -72,6 +79,9 @@ def update_middleware(mw_id):
 
     if 'meta' in data:
         m.meta = data.get('meta') or {}
+
+    if 'business_system_id' in data:
+        m.business_system_id = int(data['business_system_id']) if data.get('business_system_id') else None
 
     db.session.commit()
     return jsonify(m.to_dict())

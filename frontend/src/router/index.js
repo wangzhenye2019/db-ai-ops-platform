@@ -6,6 +6,7 @@ import Schedules from '@/views/Schedules.vue'
 import Login from '@/views/Login.vue'
 import { getToken } from '@/utils/auth'
 import AssetsOverview from '@/views/assets/Overview.vue'
+import AssetSystems from '@/views/assets/Systems.vue'
 import AssetGroups from '@/views/assets/Groups.vue'
 import AssetList from '@/views/assets/List.vue'
 import Hosts from '@/views/servers/Hosts.vue'
@@ -41,6 +42,11 @@ const routes = [
   {
     path: '/assets/overview',
     component: AssetsOverview,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/assets/systems',
+    component: AssetSystems,
     meta: { requiresAuth: true }
   },
   {

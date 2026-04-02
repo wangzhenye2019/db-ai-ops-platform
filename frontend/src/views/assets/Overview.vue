@@ -61,6 +61,16 @@
           <el-table :data="recent" stripe>
             <el-table-column prop="type" label="类型" width="120" />
             <el-table-column prop="label" label="资产" min-width="360" />
+            <el-table-column label="业务系统" min-width="160">
+              <template #default="{ row }">
+                <span>{{ row.data?.business_system_name || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="负责人" width="120">
+              <template #default="{ row }">
+                <span>{{ row.data?.owner || '-' }}</span>
+              </template>
+            </el-table-column>
             <el-table-column label="启用" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.data?.enabled ? 'success' : 'info'">{{ row.data?.enabled ? '是' : '否' }}</el-tag>

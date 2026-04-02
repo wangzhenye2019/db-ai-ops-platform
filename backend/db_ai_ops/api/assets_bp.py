@@ -48,6 +48,7 @@ def list_assets():
     q = (request.args.get('q') or '').strip().lower()
     type_raw = request.args.get('type')
     group_id = request.args.get('group_id', type=int)
+    system_id = request.args.get('system_id', type=int)
 
     asset_type = _parse_asset_type(type_raw)
     members_by_type = None
@@ -71,6 +72,8 @@ def list_assets():
             ids = members_by_type.get(a_type, set())
         for obj in items:
             if ids is not None and obj.id not in ids:
+                continue
+            if system_id and getattr(obj, 'business_system_id', None) != system_id:
                 continue
             label = _asset_label(a_type, obj)
             if not _filter_keyword(label) and not _filter_keyword(getattr(obj, 'name', '')):

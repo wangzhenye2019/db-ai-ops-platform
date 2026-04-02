@@ -23,6 +23,9 @@
       <el-table-column prop="port" label="端口" width="80" />
       <el-table-column prop="database" label="数据库" width="150" />
       <el-table-column prop="username" label="用户名" width="120" />
+      <el-table-column prop="business_system_name" label="业务系统" width="160" />
+      <el-table-column prop="owner" label="负责人" width="120" />
+      <el-table-column prop="env" label="环境" width="100" />
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <el-tag :type="row.enabled ? 'success' : 'info'">
@@ -49,6 +52,11 @@
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入数据库名称" />
         </el-form-item>
+        <el-form-item label="业务系统">
+          <el-select v-model="form.business_system_id" clearable filterable placeholder="选择业务系统">
+            <el-option v-for="s in systems" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="类型" prop="db_type">
           <el-select v-model="form.db_type" placeholder="选择数据库类型" @change="onDbTypeChange">
             <el-option
@@ -58,6 +66,12 @@
               :value="type.value"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item label="负责人">
+          <el-input v-model="form.owner" />
+        </el-form-item>
+        <el-form-item label="环境">
+          <el-input v-model="form.env" placeholder="例如：prod/test/dev" />
         </el-form-item>
         <el-form-item label="主机" prop="host">
           <el-input v-model="form.host" placeholder="localhost" />
@@ -73,6 +87,12 @@
         </el-form-item>
         <el-form-item label="密码" prop="password">
           <el-input v-model="form.password" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="版本">
+          <el-input v-model="form.version" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="form.enabled" />
@@ -113,7 +133,7 @@
         <el-icon><UploadFilled /></el-icon>
         <div class="el-upload__text">拖拽文件到此处，或点击上传</div>
         <template #tip>
-          <div class="el-upload__tip">字段：name, db_type, host, port, database, username, password, enabled</div>
+          <div class="el-upload__tip">字段：name, db_type, host, port, database, username, password, business_system, owner, env, version, remark, enabled</div>
         </template>
       </el-upload>
 
@@ -154,11 +174,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { databaseAPI, importAPI } from '@/api/services'
+import { databaseAPI, importAPI, systemsAPI } from '@/api/services'
 import { saveBlob } from '@/utils/download'
 
 const databases = ref([])
 const dbTypes = ref([])
+const systems = ref([])
 const showAddDialog = ref(false)
 const editingDatabase = ref(null)
 const formRef = ref(null)
@@ -178,6 +199,11 @@ const form = ref({
   database: '',
   username: '',
   password: '',
+  business_system_id: null,
+  owner: '',
+  env: '',
+  version: '',
+  remark: '',
   enabled: true
 })
 
@@ -209,6 +235,14 @@ const loadDbTypes = async () => {
   }
 }
 
+const loadSystems = async () => {
+  try {
+    const data = await systemsAPI.list()
+    systems.value = data.systems || []
+  } catch {
+  }
+}
+
 const onDbTypeChange = () => {
   const type = dbTypes.value.find(t => t.value === form.value.db_type)
   if (type) {
@@ -233,11 +267,19 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       try {
+        const payload = {
+          ...form.value,
+          business_system_id: form.value.business_system_id || null,
+          owner: form.value.owner || null,
+          env: form.value.env || null,
+          version: form.value.version || null,
+          remark: form.value.remark || null
+        }
         if (editingDatabase.value) {
-          await databaseAPI.update(editingDatabase.value.id, form.value)
+          await databaseAPI.update(editingDatabase.value.id, payload)
           ElMessage.success('更新成功')
         } else {
-          await databaseAPI.create(form.value)
+          await databaseAPI.create(payload)
           ElMessage.success('添加成功')
         }
         showAddDialog.value = false
@@ -289,6 +331,11 @@ const resetForm = () => {
     database: '',
     username: '',
     password: '',
+    business_system_id: null,
+    owner: '',
+    env: '',
+    version: '',
+    remark: '',
     enabled: true
   }
   if (formRef.value) {
@@ -354,6 +401,7 @@ const doPreview = async () => {
 onMounted(() => {
   loadDatabases()
   loadDbTypes()
+  loadSystems()
 })
 </script>
 

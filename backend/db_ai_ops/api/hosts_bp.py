@@ -33,8 +33,15 @@ def create_host():
         host=host,
         port=port,
         os_type=os_type,
+        hostname=(data.get('hostname') or '').strip() or None,
+        os_version=(data.get('os_version') or '').strip() or None,
         username=data.get('username'),
         password=data.get('password'),
+        business_system_id=int(data['business_system_id']) if data.get('business_system_id') else None,
+        owner=(data.get('owner') or '').strip() or None,
+        env=(data.get('env') or '').strip() or None,
+        idc=(data.get('idc') or '').strip() or None,
+        remark=(data.get('remark') or '').strip() or None,
         enabled=bool(data.get('enabled', True)),
         tags=data.get('tags') or []
     )
@@ -54,9 +61,12 @@ def update_host(host_id):
     h = Host.query.get_or_404(host_id)
     data = request.get_json() or {}
 
-    for field in ['name', 'host', 'username', 'password']:
+    for field in ['name', 'host', 'username', 'password', 'hostname', 'os_version', 'owner', 'env', 'idc', 'remark']:
         if field in data:
-            setattr(h, field, data[field])
+            val = data[field]
+            if isinstance(val, str):
+                val = val.strip()
+            setattr(h, field, val or None)
 
     if 'port' in data:
         h.port = int(data['port'])
@@ -73,6 +83,9 @@ def update_host(host_id):
 
     if 'tags' in data:
         h.tags = data.get('tags') or []
+
+    if 'business_system_id' in data:
+        h.business_system_id = int(data['business_system_id']) if data.get('business_system_id') else None
 
     db.session.commit()
     return jsonify(h.to_dict())

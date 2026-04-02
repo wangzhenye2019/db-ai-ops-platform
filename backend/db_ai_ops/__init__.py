@@ -68,6 +68,8 @@ def create_app(config_class=Config):
         from . import models
 
         db.create_all()
+        from db_ai_ops.sqlite_migrate import auto_migrate_sqlite
+        auto_migrate_sqlite(db.engine)
 
         from db_ai_ops.models import Role, User
 
@@ -111,7 +113,8 @@ def create_app(config_class=Config):
             inspection_bp,
             audit_bp,
             import_bp,
-            assets_bp
+            assets_bp,
+            systems_bp
         )
 
         app.register_blueprint(backup_bp, url_prefix='/api')
@@ -127,6 +130,7 @@ def create_app(config_class=Config):
         app.register_blueprint(audit_bp, url_prefix='/api')
         app.register_blueprint(import_bp, url_prefix='/api')
         app.register_blueprint(assets_bp, url_prefix='/api')
+        app.register_blueprint(systems_bp, url_prefix='/api')
 
     Config.init_app(app)
     return app

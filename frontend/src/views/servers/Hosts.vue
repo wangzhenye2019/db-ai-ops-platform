@@ -13,6 +13,9 @@
         <el-table-column prop="host" label="IP/域名" min-width="160" />
         <el-table-column prop="port" label="端口" width="90" />
         <el-table-column prop="os_type" label="类型" width="110" />
+        <el-table-column prop="business_system_name" label="业务系统" min-width="160" />
+        <el-table-column prop="owner" label="负责人" width="120" />
+        <el-table-column prop="env" label="环境" width="100" />
         <el-table-column label="标签" min-width="160">
           <template #default="{ row }">
             <el-tag v-for="t in (row.tags || [])" :key="t" class="tag" type="info">{{ t }}</el-tag>
@@ -57,6 +60,44 @@
         </el-row>
         <el-row :gutter="12">
           <el-col :span="12">
+            <el-form-item label="主机名">
+              <el-input v-model="form.hostname" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="OS版本">
+              <el-input v-model="form.os_version" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="业务系统">
+              <el-select v-model="form.business_system_id" clearable filterable style="width:100%">
+                <el-option v-for="s in systems" :key="s.id" :label="s.name" :value="s.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="负责人">
+              <el-input v-model="form.owner" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="环境">
+              <el-input v-model="form.env" placeholder="例如：prod/test/dev" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="机房">
+              <el-input v-model="form.idc" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
             <el-form-item label="用户名">
               <el-input v-model="form.username" />
             </el-form-item>
@@ -67,6 +108,9 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="备注">
+          <el-input v-model="form.remark" type="textarea" :rows="2" />
+        </el-form-item>
         <el-form-item label="标签（逗号分隔）">
           <el-input v-model="form.tagsText" placeholder="例如：prod,db,linux" />
         </el-form-item>
@@ -109,7 +153,7 @@
         <el-icon><UploadFilled /></el-icon>
         <div class="el-upload__text">拖拽文件到此处，或点击上传</div>
         <template #tip>
-          <div class="el-upload__tip">字段：name, host, port, os_type, username, password, enabled, tags</div>
+          <div class="el-upload__tip">字段：name, host, port, os_type, hostname, os_version, username, password, business_system, owner, env, idc, remark, tags, enabled</div>
         </template>
       </el-upload>
 
@@ -149,7 +193,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { hostAPI, importAPI } from '@/api/services'
+import { hostAPI, importAPI, systemsAPI } from '@/api/services'
 import { saveBlob } from '@/utils/download'
 
 const hosts = ref([])
@@ -157,6 +201,7 @@ const osTypes = ref([
   { value: 'linux', label: 'LINUX' },
   { value: 'windows', label: 'WINDOWS' }
 ])
+const systems = ref([])
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -175,6 +220,13 @@ const form = reactive({
   host: '',
   port: 22,
   os_type: 'linux',
+  hostname: '',
+  os_version: '',
+  business_system_id: null,
+  owner: '',
+  env: '',
+  idc: '',
+  remark: '',
   username: '',
   password: '',
   tagsText: '',
@@ -191,9 +243,10 @@ const rules = {
 const dialogTitle = computed(() => (editingId.value ? '编辑主机' : '新增主机'))
 
 const load = async () => {
-  const [listRes, typesRes] = await Promise.allSettled([hostAPI.list(), hostAPI.getOsTypes()])
+  const [listRes, typesRes, sysRes] = await Promise.allSettled([hostAPI.list(), hostAPI.getOsTypes(), systemsAPI.list()])
   if (listRes.status === 'fulfilled') hosts.value = listRes.value.hosts || []
   if (typesRes.status === 'fulfilled') osTypes.value = typesRes.value.types || osTypes.value
+  if (sysRes.status === 'fulfilled') systems.value = sysRes.value.systems || []
 }
 
 const resetForm = () => {
@@ -202,6 +255,13 @@ const resetForm = () => {
   form.host = ''
   form.port = 22
   form.os_type = 'linux'
+  form.hostname = ''
+  form.os_version = ''
+  form.business_system_id = null
+  form.owner = ''
+  form.env = ''
+  form.idc = ''
+  form.remark = ''
   form.username = ''
   form.password = ''
   form.tagsText = ''
@@ -220,6 +280,13 @@ const openEdit = (row) => {
   form.host = row.host || ''
   form.port = row.port || 22
   form.os_type = row.os_type || 'linux'
+  form.hostname = row.hostname || ''
+  form.os_version = row.os_version || ''
+  form.business_system_id = row.business_system_id || null
+  form.owner = row.owner || ''
+  form.env = row.env || ''
+  form.idc = row.idc || ''
+  form.remark = row.remark || ''
   form.username = row.username || ''
   form.password = ''
   form.tagsText = (row.tags || []).join(',')
@@ -237,6 +304,13 @@ const onSave = async () => {
         host: form.host,
         port: form.port,
         os_type: form.os_type,
+        hostname: form.hostname || null,
+        os_version: form.os_version || null,
+        business_system_id: form.business_system_id || null,
+        owner: form.owner || null,
+        env: form.env || null,
+        idc: form.idc || null,
+        remark: form.remark || null,
         username: form.username || null,
         password: form.password || null,
         enabled: form.enabled,

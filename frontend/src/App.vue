@@ -16,6 +16,7 @@
             <span>资产管理</span>
           </template>
           <el-menu-item index="/assets/overview">资产总览</el-menu-item>
+          <el-menu-item index="/assets/systems">业务系统</el-menu-item>
           <el-menu-item index="/assets/groups">资产分组</el-menu-item>
           <el-menu-item index="/assets/list">资产列表</el-menu-item>
         </el-sub-menu>

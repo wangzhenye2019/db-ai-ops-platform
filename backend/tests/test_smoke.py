@@ -30,6 +30,7 @@ def test_auth_and_core_endpoints():
         '/api/databases',
         '/api/hosts',
         '/api/middlewares',
+        '/api/systems',
         '/api/kb/articles',
         '/api/ops/tasks',
         '/api/inspection/reports',
@@ -87,3 +88,15 @@ def test_asset_groups_and_members():
 
     assets = client.get(f'/api/assets?group_id={gid}', headers=headers)
     assert assets.status_code == 200
+
+
+def test_business_systems_crud_smoke():
+    client = _client()
+    token = _login(client)
+    headers = {'Authorization': f'Bearer {token}'}
+
+    r = client.post('/api/systems', json={'name': 'order-center', 'owner': '张三', 'enabled': True}, headers=headers)
+    assert r.status_code in (201, 400)
+
+    r2 = client.get('/api/systems', headers=headers)
+    assert r2.status_code == 200

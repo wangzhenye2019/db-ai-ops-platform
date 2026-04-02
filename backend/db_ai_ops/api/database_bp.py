@@ -16,7 +16,7 @@ def list_databases():
 
 @database_bp.route('/databases', methods=['POST'])
 def create_database():
-    data = request.get_json()
+    data = request.get_json() or {}
 
     required_fields = ['name', 'db_type', 'host', 'port', 'database', 'username', 'password']
     for field in required_fields:
@@ -36,6 +36,11 @@ def create_database():
         database=data['database'],
         username=data['username'],
         password=data['password'],
+        business_system_id=int(data['business_system_id']) if data.get('business_system_id') else None,
+        owner=(data.get('owner') or '').strip() or None,
+        env=(data.get('env') or '').strip() or None,
+        version=(data.get('version') or '').strip() or None,
+        remark=(data.get('remark') or '').strip() or None,
         enabled=data.get('enabled', True)
     )
 
@@ -54,11 +59,17 @@ def get_database(database_id):
 @database_bp.route('/databases/<int:database_id>', methods=['PUT'])
 def update_database(database_id):
     database = Database.query.get_or_404(database_id)
-    data = request.get_json()
+    data = request.get_json() or {}
 
-    for field in ['name', 'host', 'port', 'database', 'username', 'password', 'enabled']:
+    for field in ['name', 'host', 'port', 'database', 'username', 'password', 'enabled', 'owner', 'env', 'version', 'remark']:
         if field in data:
-            setattr(database, field, data[field])
+            val = data[field]
+            if isinstance(val, str):
+                val = val.strip()
+            setattr(database, field, val or None)
+
+    if 'business_system_id' in data:
+        database.business_system_id = int(data['business_system_id']) if data.get('business_system_id') else None
 
     if 'db_type' in data:
         try:

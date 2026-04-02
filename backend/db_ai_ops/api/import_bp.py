@@ -16,15 +16,15 @@ from db_ai_ops.imports import (
     read_xlsx,
     rows_to_dicts
 )
-from db_ai_ops.models import Database, DatabaseType, Host, HostOSType, Middleware, MiddlewareType
+from db_ai_ops.models import BusinessSystem, Database, DatabaseType, Host, HostOSType, Middleware, MiddlewareType
 
 import_bp = Blueprint('import_bp', __name__)
 
 
 RESOURCE_SPECS = {
     'databases': {
-        'headers': ['name', 'db_type', 'host', 'port', 'database', 'username', 'password', 'enabled'],
-        'example': ['db1', 'mysql', '127.0.0.1', 3306, 'test', 'root', 'password', True],
+        'headers': ['name', 'db_type', 'host', 'port', 'database', 'username', 'password', 'business_system', 'owner', 'env', 'version', 'remark', 'enabled'],
+        'example': ['db1', 'mysql', '127.0.0.1', 3306, 'test', 'root', 'password', 'order-center', '张三', 'prod', '8.0', '核心库', True],
         'mapping': {
             '名称': 'name',
             '类型': 'db_type',
@@ -33,13 +33,18 @@ RESOURCE_SPECS = {
             '数据库': 'database',
             '用户名': 'username',
             '密码': 'password',
+            '业务系统': 'business_system',
+            '负责人': 'owner',
+            '环境': 'env',
+            '版本': 'version',
+            '备注': 'remark',
             '状态': 'enabled',
             'enabled': 'enabled'
         }
     },
     'hosts': {
-        'headers': ['name', 'host', 'port', 'os_type', 'username', 'password', 'enabled', 'tags'],
-        'example': ['host1', '192.168.1.10', 22, 'linux', 'root', 'password', True, 'prod,db'],
+        'headers': ['name', 'host', 'port', 'os_type', 'hostname', 'os_version', 'username', 'password', 'business_system', 'owner', 'env', 'idc', 'remark', 'tags', 'enabled'],
+        'example': ['host1', '192.168.1.10', 22, 'linux', 'web-01', 'ubuntu22.04', 'root', 'password', 'order-center', '张三', 'prod', '北京-机房A', '核心节点', 'prod,web', True],
         'mapping': {
             '名称': 'name',
             'ip': 'host',
@@ -49,22 +54,35 @@ RESOURCE_SPECS = {
             '主机': 'host',
             '端口': 'port',
             '类型': 'os_type',
+            '主机名': 'hostname',
+            'hostname': 'hostname',
+            'OS版本': 'os_version',
+            'os_version': 'os_version',
             '用户名': 'username',
             '密码': 'password',
+            '业务系统': 'business_system',
+            '负责人': 'owner',
+            '环境': 'env',
+            '机房': 'idc',
+            '备注': 'remark',
             '状态': 'enabled',
             '标签': 'tags',
             'enabled': 'enabled'
         }
     },
     'middlewares': {
-        'headers': ['name', 'mw_type', 'host', 'port', 'version', 'enabled', 'meta'],
-        'example': ['redis-1', 'redis', '192.168.1.20', 6379, '7.2', True, '{"cluster":"c1"}'],
+        'headers': ['name', 'mw_type', 'host', 'port', 'version', 'business_system', 'owner', 'env', 'remark', 'enabled', 'meta'],
+        'example': ['redis-1', 'redis', '192.168.1.20', 6379, '7.2', 'order-center', '张三', 'prod', '缓存', True, '{"cluster":"c1"}'],
         'mapping': {
             '名称': 'name',
             '类型': 'mw_type',
             '主机': 'host',
             '端口': 'port',
             '版本': 'version',
+            '业务系统': 'business_system',
+            '负责人': 'owner',
+            '环境': 'env',
+            '备注': 'remark',
             '状态': 'enabled',
             '元数据': 'meta',
             'enabled': 'enabled'
@@ -150,6 +168,21 @@ def import_resource(resource):
     created_count = 0
     updated_count = 0
     skipped_count = 0
+    system_cache = {}
+
+    def _resolve_system_id(raw_value, allow_create):
+        key = str(raw_value or '').strip()
+        if not key:
+            return None, None
+        if key in system_cache:
+            return system_cache[key], key
+        s = BusinessSystem.query.filter((BusinessSystem.name == key) | (BusinessSystem.code == key)).first()
+        if not s and allow_create:
+            s = BusinessSystem(name=key, enabled=True)
+            db.session.add(s)
+            db.session.flush()
+        system_cache[key] = s.id if s else None
+        return system_cache[key], key
 
     for line_no, row in enumerate(data_rows, start=2):
         try:
@@ -169,6 +202,13 @@ def import_resource(resource):
                     enabled = parse_bool(enabled_raw, None)
                     tags_raw = row.get('tags')
                     tags = parse_tags(tags_raw)
+                    hostname = str(row.get('hostname') or '').strip() or None
+                    os_version = str(row.get('os_version') or '').strip() or None
+                    owner = str(row.get('owner') or '').strip() or None
+                    env = str(row.get('env') or '').strip() or None
+                    idc = str(row.get('idc') or '').strip() or None
+                    remark = str(row.get('remark') or '').strip() or None
+                    bs_id, bs_key = _resolve_system_id(row.get('business_system'), allow_create=not dry_run)
 
                     existing = Host.query.filter_by(host=host, port=port).first()
                     action = None
@@ -187,6 +227,20 @@ def import_resource(resource):
                                 existing.enabled = enabled
                             if str(tags_raw or '').strip() != '':
                                 existing.tags = tags
+                            if hostname is not None:
+                                existing.hostname = hostname
+                            if os_version is not None:
+                                existing.os_version = os_version
+                            if owner is not None:
+                                existing.owner = owner
+                            if env is not None:
+                                existing.env = env
+                            if idc is not None:
+                                existing.idc = idc
+                            if remark is not None:
+                                existing.remark = remark
+                            if bs_id is not None:
+                                existing.business_system_id = bs_id
                     else:
                         action = 'create'
                         if not dry_run:
@@ -195,8 +249,15 @@ def import_resource(resource):
                                 host=host,
                                 port=port,
                                 os_type=os_type,
+                                hostname=hostname,
+                                os_version=os_version,
                                 username=username,
                                 password=password,
+                                business_system_id=bs_id,
+                                owner=owner,
+                                env=env,
+                                idc=idc,
+                                remark=remark,
                                 enabled=enabled if enabled is not None else True,
                                 tags=tags
                             )
@@ -215,6 +276,9 @@ def import_resource(resource):
                             'host': host,
                             'port': port,
                             'os_type': os_type.value,
+                            'business_system': bs_key,
+                            'owner': owner,
+                            'env': env,
                             'username': username,
                             'password': password,
                             'enabled': enabled if enabled is not None else '',
@@ -231,6 +295,11 @@ def import_resource(resource):
                     password = str(row.get('password') or '').strip()
                     enabled_raw = row.get('enabled')
                     enabled = parse_bool(enabled_raw, None)
+                    owner = str(row.get('owner') or '').strip() or None
+                    env = str(row.get('env') or '').strip() or None
+                    version = str(row.get('version') or '').strip() or None
+                    remark = str(row.get('remark') or '').strip() or None
+                    bs_id, bs_key = _resolve_system_id(row.get('business_system'), allow_create=not dry_run)
 
                     if not name or not db_type_raw or not host or port is None or not database or not username:
                         raise ValueError('name/db_type/host/port/database/username 不能为空')
@@ -250,6 +319,16 @@ def import_resource(resource):
                                 existing.password = password
                             if enabled is not None:
                                 existing.enabled = enabled
+                            if owner is not None:
+                                existing.owner = owner
+                            if env is not None:
+                                existing.env = env
+                            if version is not None:
+                                existing.version = version
+                            if remark is not None:
+                                existing.remark = remark
+                            if bs_id is not None:
+                                existing.business_system_id = bs_id
                     else:
                         action = 'create'
                         if not dry_run:
@@ -261,6 +340,11 @@ def import_resource(resource):
                                 database=database,
                                 username=username,
                                 password=password,
+                                business_system_id=bs_id,
+                                owner=owner,
+                                env=env,
+                                version=version,
+                                remark=remark,
                                 enabled=enabled if enabled is not None else True
                             )
                             db.session.add(d)
@@ -281,6 +365,9 @@ def import_resource(resource):
                             'database': database,
                             'username': username,
                             'password': password,
+                            'business_system': bs_key,
+                            'owner': owner,
+                            'env': env,
                             'enabled': enabled if enabled is not None else ''
                         }))
 
@@ -292,8 +379,12 @@ def import_resource(resource):
                     version = str(row.get('version') or '').strip() or None
                     enabled_raw = row.get('enabled')
                     enabled = parse_bool(enabled_raw, None)
+                    owner = str(row.get('owner') or '').strip() or None
+                    env = str(row.get('env') or '').strip() or None
+                    remark = str(row.get('remark') or '').strip() or None
                     meta_raw = row.get('meta')
                     meta = parse_json(meta_raw, {})
+                    bs_id, bs_key = _resolve_system_id(row.get('business_system'), allow_create=not dry_run)
 
                     if not name or not mw_type_raw or not host or port is None:
                         raise ValueError('name/mw_type/host/port 不能为空')
@@ -313,6 +404,14 @@ def import_resource(resource):
                                 existing.enabled = enabled
                             if str(meta_raw or '').strip() != '':
                                 existing.meta = meta
+                            if owner is not None:
+                                existing.owner = owner
+                            if env is not None:
+                                existing.env = env
+                            if remark is not None:
+                                existing.remark = remark
+                            if bs_id is not None:
+                                existing.business_system_id = bs_id
                     else:
                         action = 'create'
                         if not dry_run:
@@ -322,6 +421,10 @@ def import_resource(resource):
                                 host=host,
                                 port=port,
                                 version=version,
+                                business_system_id=bs_id,
+                                owner=owner,
+                                env=env,
+                                remark=remark,
                                 enabled=enabled if enabled is not None else True,
                                 meta=meta
                             )
@@ -341,6 +444,9 @@ def import_resource(resource):
                             'host': host,
                             'port': port,
                             'version': version,
+                            'business_system': bs_key,
+                            'owner': owner,
+                            'env': env,
                             'enabled': enabled if enabled is not None else '',
                             'meta': meta
                         })

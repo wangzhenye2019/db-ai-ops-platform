@@ -125,6 +125,14 @@ export const assetsAPI = {
   updateGroupMembers: (id, data) => api.post(`/assets/groups/${id}/members`, data)
 }
 
+export const systemsAPI = {
+  list: () => api.get('/systems'),
+  create: (data) => api.post('/systems', data),
+  update: (id, data) => api.put(`/systems/${id}`, data),
+  delete: (id) => api.delete(`/systems/${id}`),
+  assets: (id) => api.get(`/systems/${id}/assets`)
+}
+
 export const importAPI = {
   downloadTemplate: (resource, format) =>
     api.get(`/import/templates/${resource}`, { params: { format }, responseType: 'blob' }),

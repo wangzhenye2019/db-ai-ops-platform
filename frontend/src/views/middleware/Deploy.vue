@@ -14,6 +14,9 @@
         <el-table-column prop="host" label="主机" min-width="160" />
         <el-table-column prop="port" label="端口" width="90" />
         <el-table-column prop="version" label="版本" width="120" />
+        <el-table-column prop="business_system_name" label="业务系统" min-width="160" />
+        <el-table-column prop="owner" label="负责人" width="120" />
+        <el-table-column prop="env" label="环境" width="100" />
         <el-table-column label="启用" width="90">
           <template #default="{ row }">
             <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '是' : '否' }}</el-tag>
@@ -46,6 +49,20 @@
         </el-row>
         <el-row :gutter="12">
           <el-col :span="12">
+            <el-form-item label="业务系统">
+              <el-select v-model="form.business_system_id" clearable filterable style="width:100%">
+                <el-option v-for="s in systems" :key="s.id" :label="s.name" :value="s.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="负责人">
+              <el-input v-model="form.owner" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
             <el-form-item label="主机" prop="host">
               <el-input v-model="form.host" />
             </el-form-item>
@@ -65,6 +82,18 @@
           <el-col :span="12">
             <el-form-item label="启用">
               <el-switch v-model="form.enabled" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="环境">
+              <el-input v-model="form.env" placeholder="例如：prod/test/dev" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="备注">
+              <el-input v-model="form.remark" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -107,7 +136,7 @@
         <el-icon><UploadFilled /></el-icon>
         <div class="el-upload__text">拖拽文件到此处，或点击上传</div>
         <template #tip>
-          <div class="el-upload__tip">字段：name, mw_type, host, port, version, enabled, meta</div>
+          <div class="el-upload__tip">字段：name, mw_type, host, port, version, business_system, owner, env, remark, enabled, meta</div>
         </template>
       </el-upload>
 
@@ -148,11 +177,12 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { importAPI, middlewareAPI } from '@/api/services'
+import { importAPI, middlewareAPI, systemsAPI } from '@/api/services'
 import { saveBlob } from '@/utils/download'
 
 const items = ref([])
 const types = ref([{ value: 'other', label: 'OTHER' }])
+const systems = ref([])
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -172,6 +202,10 @@ const form = reactive({
   host: '',
   port: 6379,
   version: '',
+  business_system_id: null,
+  owner: '',
+  env: '',
+  remark: '',
   enabled: true,
   meta: ''
 })
@@ -186,9 +220,10 @@ const rules = {
 const dialogTitle = computed(() => (editingId.value ? '编辑中间件' : '新增中间件'))
 
 const load = async () => {
-  const [listRes, typeRes] = await Promise.allSettled([middlewareAPI.list(), middlewareAPI.getTypes()])
+  const [listRes, typeRes, sysRes] = await Promise.allSettled([middlewareAPI.list(), middlewareAPI.getTypes(), systemsAPI.list()])
   if (listRes.status === 'fulfilled') items.value = listRes.value.middlewares || []
   if (typeRes.status === 'fulfilled') types.value = typeRes.value.types || types.value
+  if (sysRes.status === 'fulfilled') systems.value = sysRes.value.systems || []
 }
 
 const resetForm = () => {
@@ -198,6 +233,10 @@ const resetForm = () => {
   form.host = ''
   form.port = 6379
   form.version = ''
+  form.business_system_id = null
+  form.owner = ''
+  form.env = ''
+  form.remark = ''
   form.enabled = true
   form.meta = ''
   formRef.value?.clearValidate?.()
@@ -215,6 +254,10 @@ const openEdit = (row) => {
   form.host = row.host || ''
   form.port = row.port || 0
   form.version = row.version || ''
+  form.business_system_id = row.business_system_id || null
+  form.owner = row.owner || ''
+  form.env = row.env || ''
+  form.remark = row.remark || ''
   form.enabled = !!row.enabled
   form.meta = row.meta ? JSON.stringify(row.meta) : ''
   dialogVisible.value = true
@@ -233,6 +276,10 @@ const onSave = async () => {
         host: form.host,
         port: form.port,
         version: form.version || null,
+        business_system_id: form.business_system_id || null,
+        owner: form.owner || null,
+        env: form.env || null,
+        remark: form.remark || null,
         enabled: form.enabled,
         meta: metaObj
       }
