@@ -10,6 +10,10 @@
           <el-icon><DataLine /></el-icon>
           <span>首页</span>
         </el-menu-item>
+        <el-menu-item index="/agent">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>智能体</span>
+        </el-menu-item>
         <el-sub-menu index="/assets">
           <template #title>
             <el-icon><Collection /></el-icon>

@@ -143,3 +143,32 @@ def test_ip_assets_smoke():
     assert r.status_code in (201, 400)
     lst = client.get('/api/ips', headers=headers)
     assert lst.status_code == 200
+
+
+def test_agent_chatops_smoke():
+    client = _client()
+    token = _login(client)
+    headers = {'Authorization': f'Bearer {token}'}
+
+    tools = client.get('/api/agent/tools', headers=headers)
+    assert tools.status_code == 200
+    assert isinstance(tools.get_json().get('tools'), list)
+
+    s = client.post('/api/agent/sessions', json={'title': 't'}, headers=headers)
+    assert s.status_code == 201
+    sid = s.get_json()['id']
+
+    r1 = client.post(f'/api/agent/sessions/{sid}/messages', json={'content': '备份统计'}, headers=headers)
+    assert r1.status_code == 200
+    body = r1.get_json()
+    assert 'messages' in body
+
+    r2 = client.post(f'/api/agent/sessions/{sid}/messages', json={'content': '在 10.0.0.10 执行 `uptime`'}, headers=headers)
+    assert r2.status_code == 200
+    body2 = r2.get_json()
+    assert body2.get('pending') is not None
+
+    r3 = client.post(f'/api/agent/sessions/{sid}/messages', json={'content': '取消', 'cancel': True}, headers=headers)
+    assert r3.status_code == 200
+    body3 = r3.get_json()
+    assert body3.get('pending') is None

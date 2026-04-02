@@ -27,6 +27,7 @@ import DataMigration from '@/views/DataMigration.vue'
 import OneClickInspection from '@/views/inspection/OneClick.vue'
 import InspectionReports from '@/views/inspection/Reports.vue'
 import About from '@/views/About.vue'
+import Agent from '@/views/Agent.vue'
 
 const routes = [
   {
@@ -166,6 +167,11 @@ const routes = [
   {
     path: '/about',
     component: About,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/agent',
+    component: Agent,
     meta: { requiresAuth: true }
   }
 ]

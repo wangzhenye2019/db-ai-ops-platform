@@ -179,3 +179,11 @@ export const importAPI = {
     })
   }
 }
+
+export const agentAPI = {
+  tools: () => api.get('/agent/tools'),
+  createSession: (data) => api.post('/agent/sessions', data),
+  getSession: (id) => api.get(`/agent/sessions/${id}`),
+  listMessages: (id) => api.get(`/agent/sessions/${id}/messages`),
+  sendMessage: (id, data) => api.post(`/agent/sessions/${id}/messages`, data)
+}
