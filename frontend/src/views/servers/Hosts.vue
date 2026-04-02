@@ -108,6 +108,11 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="凭据（可选）">
+          <el-select v-model="form.credential_id" clearable filterable style="width:100%" placeholder="选择凭据（优先使用）">
+            <el-option v-for="c in credentials" :key="c.id" :label="`${c.name}${c.username ? ' / '+c.username : ''}`" :value="c.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
@@ -193,7 +198,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { hostAPI, importAPI, systemsAPI } from '@/api/services'
+import { credsAPI, hostAPI, importAPI, systemsAPI } from '@/api/services'
 import { saveBlob } from '@/utils/download'
 
 const hosts = ref([])
@@ -202,6 +207,7 @@ const osTypes = ref([
   { value: 'windows', label: 'WINDOWS' }
 ])
 const systems = ref([])
+const credentials = ref([])
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -229,6 +235,7 @@ const form = reactive({
   remark: '',
   username: '',
   password: '',
+  credential_id: null,
   tagsText: '',
   enabled: true
 })
@@ -243,10 +250,11 @@ const rules = {
 const dialogTitle = computed(() => (editingId.value ? '编辑主机' : '新增主机'))
 
 const load = async () => {
-  const [listRes, typesRes, sysRes] = await Promise.allSettled([hostAPI.list(), hostAPI.getOsTypes(), systemsAPI.list()])
+  const [listRes, typesRes, sysRes, credRes] = await Promise.allSettled([hostAPI.list(), hostAPI.getOsTypes(), systemsAPI.list(), credsAPI.list()])
   if (listRes.status === 'fulfilled') hosts.value = listRes.value.hosts || []
   if (typesRes.status === 'fulfilled') osTypes.value = typesRes.value.types || osTypes.value
   if (sysRes.status === 'fulfilled') systems.value = sysRes.value.systems || []
+  if (credRes.status === 'fulfilled') credentials.value = credRes.value.credentials || []
 }
 
 const resetForm = () => {
@@ -264,6 +272,7 @@ const resetForm = () => {
   form.remark = ''
   form.username = ''
   form.password = ''
+  form.credential_id = null
   form.tagsText = ''
   form.enabled = true
   formRef.value?.clearValidate?.()
@@ -289,6 +298,7 @@ const openEdit = (row) => {
   form.remark = row.remark || ''
   form.username = row.username || ''
   form.password = ''
+  form.credential_id = row.credential_id || null
   form.tagsText = (row.tags || []).join(',')
   form.enabled = !!row.enabled
   dialogVisible.value = true
@@ -313,6 +323,7 @@ const onSave = async () => {
         remark: form.remark || null,
         username: form.username || null,
         password: form.password || null,
+        credential_id: form.credential_id || null,
         enabled: form.enabled,
         tags: form.tagsText
           .split(',')

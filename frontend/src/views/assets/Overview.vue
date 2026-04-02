@@ -43,11 +43,36 @@
         <el-card class="kpi-card">
           <div class="kpi-top">
             <div class="kpi-icon" style="background:#f1f5f9;color:#334155">
+              <el-icon><Coin /></el-icon>
+            </div>
+            <div class="kpi-title">IP</div>
+          </div>
+          <div class="kpi-value">{{ counts.ips }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16" class="kpi-row">
+      <el-col :span="12">
+        <el-card class="kpi-card">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:#f1f5f9;color:#334155">
               <el-icon><Collection /></el-icon>
             </div>
             <div class="kpi-title">分组</div>
           </div>
           <div class="kpi-value">{{ counts.groups }}</div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card class="kpi-card">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:#f1f5f9;color:#334155">
+              <el-icon><Grid /></el-icon>
+            </div>
+            <div class="kpi-title">业务系统</div>
+          </div>
+          <div class="kpi-value">{{ counts.systems }}</div>
         </el-card>
       </el-col>
     </el-row>
@@ -88,7 +113,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { assetsAPI } from '@/api/services'
 
-const counts = ref({ hosts: 0, databases: 0, middlewares: 0, groups: 0 })
+const counts = ref({ hosts: 0, databases: 0, middlewares: 0, ips: 0, groups: 0, systems: 0 })
 const recent = ref([])
 
 const load = async () => {

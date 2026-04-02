@@ -16,7 +16,7 @@ from db_ai_ops.imports import (
     read_xlsx,
     rows_to_dicts
 )
-from db_ai_ops.models import BusinessSystem, Database, DatabaseType, Host, HostOSType, Middleware, MiddlewareType
+from db_ai_ops.models import BusinessSystem, Database, DatabaseType, Host, HostOSType, IdcDict, IpAsset, IpStatus, IpVersion, Middleware, MiddlewareType
 
 import_bp = Blueprint('import_bp', __name__)
 
@@ -86,6 +86,27 @@ RESOURCE_SPECS = {
             '状态': 'enabled',
             '元数据': 'meta',
             'enabled': 'enabled'
+        }
+    }
+    ,
+    'ips': {
+        'headers': ['ip', 'cidr', 'version', 'status', 'business_system', 'owner', 'env', 'idc', 'remark', 'tags'],
+        'example': ['10.0.0.10', 24, 'ipv4', 'free', 'order-center', '张三', 'prod', '北京-机房A', '网段预留', 'prod,web'],
+        'mapping': {
+            'IP': 'ip',
+            'ip': 'ip',
+            '掩码': 'cidr',
+            'cidr': 'cidr',
+            '版本': 'version',
+            'version': 'version',
+            '状态': 'status',
+            'status': 'status',
+            '业务系统': 'business_system',
+            '负责人': 'owner',
+            '环境': 'env',
+            '机房': 'idc',
+            '备注': 'remark',
+            '标签': 'tags'
         }
     }
 }
@@ -370,6 +391,96 @@ def import_resource(resource):
                             'env': env,
                             'enabled': enabled if enabled is not None else ''
                         }))
+
+                elif resource == 'ips':
+                    ip = str(row.get('ip') or '').strip()
+                    cidr = row.get('cidr')
+                    version_raw = str(row.get('version') or 'ipv4').strip().lower()
+                    status_raw = str(row.get('status') or 'free').strip().lower()
+                    owner = str(row.get('owner') or '').strip() or None
+                    env = str(row.get('env') or '').strip() or None
+                    remark = str(row.get('remark') or '').strip() or None
+                    tags_raw = row.get('tags')
+                    tags = parse_tags(tags_raw)
+                    idc_name = str(row.get('idc') or '').strip()
+                    bs_id, bs_key = _resolve_system_id(row.get('business_system'), allow_create=not dry_run)
+
+                    if not ip:
+                        raise ValueError('ip 不能为空')
+
+                    try:
+                        version = IpVersion(version_raw)
+                    except ValueError:
+                        raise ValueError('version 无效')
+
+                    try:
+                        status = IpStatus(status_raw)
+                    except ValueError:
+                        raise ValueError('status 无效')
+
+                    idc_id = None
+                    if idc_name:
+                        idc = IdcDict.query.filter_by(name=idc_name).first()
+                        if not idc and not dry_run:
+                            idc = IdcDict(name=idc_name)
+                            db.session.add(idc)
+                            db.session.flush()
+                        idc_id = idc.id if idc else None
+
+                    existing = IpAsset.query.filter_by(ip=ip).first()
+                    action = None
+                    if existing:
+                        if mode == 'insert':
+                            raise ValueError('记录已存在（ip）')
+                        action = 'update'
+                        if not dry_run:
+                            existing.cidr = int(cidr) if cidr else None
+                            existing.version = version
+                            existing.status = status
+                            existing.business_system_id = bs_id
+                            existing.owner = owner
+                            existing.env = env
+                            existing.idc_id = idc_id
+                            existing.remark = remark
+                            if str(tags_raw or '').strip() != '':
+                                existing.tags = tags
+                    else:
+                        action = 'create'
+                        if not dry_run:
+                            x = IpAsset(
+                                ip=ip,
+                                cidr=int(cidr) if cidr else None,
+                                version=version,
+                                status=status,
+                                business_system_id=bs_id,
+                                owner=owner,
+                                env=env,
+                                idc_id=idc_id,
+                                remark=remark,
+                                tags=tags
+                            )
+                            db.session.add(x)
+
+                    if action == 'create':
+                        created_count += 1
+                    elif action == 'update':
+                        updated_count += 1
+
+                    if dry_run and len(preview) < 20:
+                        preview.append({
+                            'row': line_no,
+                            'action': action,
+                            'ip': ip,
+                            'cidr': int(cidr) if cidr else None,
+                            'version': version.value,
+                            'status': status.value,
+                            'business_system': bs_key,
+                            'owner': owner,
+                            'env': env,
+                            'idc': idc_name,
+                            'remark': remark,
+                            'tags': tags
+                        })
 
                 else:
                     name = str(row.get('name') or '').strip()

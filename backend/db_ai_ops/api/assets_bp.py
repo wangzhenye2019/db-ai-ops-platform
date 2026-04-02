@@ -4,9 +4,12 @@ from db_ai_ops.extensions import db
 from db_ai_ops.models import (
     AssetGroup,
     AssetGroupMember,
+    AssetSystemLink,
     AssetType,
+    BusinessSystem,
     Database,
     Host,
+    IpAsset,
     Middleware
 )
 
@@ -28,6 +31,8 @@ def _asset_label(asset_type, obj):
         return f"{obj.name} ({obj.host}:{obj.port})"
     if asset_type == AssetType.DATABASE:
         return f"{obj.name} ({obj.db_type.value}@{obj.host}:{obj.port}/{obj.database})"
+    if asset_type == AssetType.IP:
+        return f"{obj.ip}/{obj.cidr}" if obj.cidr else obj.ip
     return f"{obj.name} ({obj.mw_type.value}@{obj.host}:{obj.port})"
 
 
@@ -38,7 +43,9 @@ def asset_summary():
             'hosts': Host.query.count(),
             'databases': Database.query.count(),
             'middlewares': Middleware.query.count(),
-            'groups': AssetGroup.query.count()
+            'ips': IpAsset.query.count(),
+            'groups': AssetGroup.query.count(),
+            'systems': BusinessSystem.query.count()
         }
     })
 
@@ -59,6 +66,13 @@ def list_assets():
         for m in members:
             members_by_type.setdefault(m.asset_type, set()).add(m.asset_id)
 
+    links_by_type = None
+    if system_id:
+        links = AssetSystemLink.query.filter_by(system_id=system_id).all()
+        links_by_type = {}
+        for l in links:
+            links_by_type.setdefault(l.asset_type, set()).add(l.asset_id)
+
     def _filter_keyword(item_text):
         if not q:
             return True
@@ -70,11 +84,16 @@ def list_assets():
         ids = None
         if members_by_type is not None:
             ids = members_by_type.get(a_type, set())
+        linked = None
+        if links_by_type is not None:
+            linked = links_by_type.get(a_type, set())
         for obj in items:
             if ids is not None and obj.id not in ids:
                 continue
-            if system_id and getattr(obj, 'business_system_id', None) != system_id:
-                continue
+            if system_id:
+                primary = getattr(obj, 'business_system_id', None)
+                if primary != system_id and (linked is None or obj.id not in linked):
+                    continue
             label = _asset_label(a_type, obj)
             if not _filter_keyword(label) and not _filter_keyword(getattr(obj, 'name', '')):
                 continue
@@ -94,6 +113,9 @@ def list_assets():
     if asset_type in (None, AssetType.MIDDLEWARE):
         mws = Middleware.query.order_by(Middleware.created_at.desc()).all()
         _append_items(AssetType.MIDDLEWARE, mws)
+    if asset_type in (None, AssetType.IP):
+        ips = IpAsset.query.order_by(IpAsset.created_at.desc()).all()
+        _append_items(AssetType.IP, ips)
 
     return jsonify({'assets': assets, 'total': len(assets)})
 
@@ -105,13 +127,13 @@ def list_groups():
     members = AssetGroupMember.query.filter(AssetGroupMember.group_id.in_(group_ids)).all() if group_ids else []
     counts = {}
     for m in members:
-        counts.setdefault(m.group_id, {'host': 0, 'database': 0, 'middleware': 0})
+        counts.setdefault(m.group_id, {'host': 0, 'database': 0, 'middleware': 0, 'ip': 0})
         counts[m.group_id][m.asset_type.value] += 1
     return jsonify({
         'groups': [
             {
                 **g.to_dict(),
-                'counts': counts.get(g.id, {'host': 0, 'database': 0, 'middleware': 0})
+                'counts': counts.get(g.id, {'host': 0, 'database': 0, 'middleware': 0, 'ip': 0})
             }
             for g in groups
         ]
@@ -168,6 +190,8 @@ def list_group_members(group_id):
             obj = Host.query.get(m.asset_id)
         elif m.asset_type == AssetType.DATABASE:
             obj = Database.query.get(m.asset_id)
+        elif m.asset_type == AssetType.IP:
+            obj = IpAsset.query.get(m.asset_id)
         else:
             obj = Middleware.query.get(m.asset_id)
         if not obj:

@@ -1,27 +1,45 @@
 <template>
   <div class="page">
     <div class="title-row">
-      <div class="title">中间件部署</div>
+      <div class="title">IP资产管理</div>
       <div class="actions">
         <el-button @click="openImport">批量导入</el-button>
-        <el-button type="primary" @click="openCreate">新增中间件</el-button>
+        <el-button type="primary" @click="openCreate">新增IP</el-button>
       </div>
     </div>
+
     <el-card class="card">
-      <el-table :data="items" stripe>
-        <el-table-column prop="name" label="名称" min-width="160" />
-        <el-table-column prop="mw_type" label="类型" width="150" />
-        <el-table-column prop="host" label="主机" min-width="160" />
-        <el-table-column prop="port" label="端口" width="90" />
-        <el-table-column prop="version" label="版本" width="120" />
+      <el-row :gutter="12" class="filters">
+        <el-col :span="6">
+          <el-select v-model="status" clearable style="width:100%" placeholder="状态">
+            <el-option v-for="s in statuses" :key="s.value" :label="s.label" :value="s.value" />
+          </el-select>
+        </el-col>
+        <el-col :span="6">
+          <el-select v-model="systemId" clearable filterable style="width:100%" placeholder="业务系统">
+            <el-option v-for="s in systems" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-col>
+        <el-col :span="6">
+          <el-select v-model="idcId" clearable filterable style="width:100%" placeholder="机房">
+            <el-option v-for="i in idcs" :key="i.id" :label="i.name" :value="i.id" />
+          </el-select>
+        </el-col>
+        <el-col :span="6">
+          <el-input v-model="q" clearable placeholder="搜索（IP/负责人/备注）" @keyup.enter="load" />
+        </el-col>
+      </el-row>
+
+      <el-table :data="ips" stripe>
+        <el-table-column prop="ip" label="IP" width="160" />
+        <el-table-column prop="cidr" label="掩码" width="100" />
+        <el-table-column prop="version" label="版本" width="110" />
+        <el-table-column prop="status" label="状态" width="120" />
         <el-table-column prop="business_system_name" label="业务系统" min-width="160" />
         <el-table-column prop="owner" label="负责人" width="120" />
         <el-table-column prop="env" label="环境" width="100" />
-        <el-table-column label="启用" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '是' : '否' }}</el-tag>
-          </template>
-        </el-table-column>
+        <el-table-column prop="idc_name" label="机房" width="140" />
+        <el-table-column prop="remark" label="备注" min-width="160" />
         <el-table-column label="操作" width="180">
           <template #default="{ row }">
             <el-button text @click="openEdit(row)">编辑</el-button>
@@ -31,18 +49,32 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px">
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
         <el-row :gutter="12">
           <el-col :span="12">
-            <el-form-item label="名称" prop="name">
-              <el-input v-model="form.name" />
+            <el-form-item label="IP" prop="ip">
+              <el-input v-model="form.ip" :disabled="!!editingId" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="类型" prop="mw_type">
-              <el-select v-model="form.mw_type" style="width:100%">
-                <el-option v-for="t in types" :key="t.value" :label="t.label" :value="t.value" />
+            <el-form-item label="掩码（CIDR）">
+              <el-input-number v-model="form.cidr" :min="0" :max="128" style="width:100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="版本">
+              <el-select v-model="form.version" style="width:100%">
+                <el-option v-for="v in versions" :key="v.value" :label="v.label" :value="v.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态">
+              <el-select v-model="form.status" style="width:100%">
+                <el-option v-for="s in statuses" :key="s.value" :label="s.label" :value="s.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -56,54 +88,30 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="机房">
+              <el-select v-model="form.idc_id" clearable filterable style="width:100%">
+                <el-option v-for="i in idcs" :key="i.id" :label="i.name" :value="i.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
             <el-form-item label="负责人">
               <el-input v-model="form.owner" />
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="12">
-          <el-col :span="12">
-            <el-form-item label="主机" prop="host">
-              <el-input v-model="form.host" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="端口" prop="port">
-              <el-input-number v-model="form.port" :min="1" :max="65535" style="width:100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="12">
-          <el-col :span="12">
-            <el-form-item label="版本">
-              <el-input v-model="form.version" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="启用">
-              <el-switch v-model="form.enabled" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="12">
           <el-col :span="12">
             <el-form-item label="环境">
               <el-input v-model="form.env" placeholder="例如：prod/test/dev" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="备注">
-              <el-input v-model="form.remark" />
-            </el-form-item>
-          </el-col>
         </el-row>
-        <el-form-item label="凭据（可选）">
-          <el-select v-model="form.credential_id" clearable filterable style="width:100%" placeholder="选择凭据">
-            <el-option v-for="c in credentials" :key="c.id" :label="`${c.name}${c.username ? ' / '+c.username : ''}`" :value="c.id" />
-          </el-select>
+        <el-form-item label="标签（逗号分隔）">
+          <el-input v-model="form.tagsText" />
         </el-form-item>
-        <el-form-item label="元数据（JSON）">
-          <el-input v-model="form.meta" type="textarea" :rows="4" placeholder='例如：{"cluster":"c1"}' />
+        <el-form-item label="备注">
+          <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -112,14 +120,13 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="importVisible" title="批量导入中间件" width="720px">
+    <el-dialog v-model="importVisible" title="批量导入IP" width="720px">
       <el-alert
         type="info"
         show-icon
         :closable="false"
-        title="支持 CSV / XLSX / TXT（首行为表头）。建议先下载模板填写后再上传。"
+        title="支持 CSV / XLSX / TXT（首行为表头）。支持预览校验与覆盖更新（upsert）。"
       />
-
       <div class="import-actions">
         <el-button @click="downloadTemplate('csv')">下载 CSV 模板</el-button>
         <el-button @click="downloadTemplate('xlsx')">下载 Excel 模板</el-button>
@@ -128,7 +135,6 @@
         <span class="muted">更新已存在</span>
         <el-switch v-model="importUpsert" />
       </div>
-
       <el-upload
         :auto-upload="false"
         :limit="1"
@@ -141,7 +147,7 @@
         <el-icon><UploadFilled /></el-icon>
         <div class="el-upload__text">拖拽文件到此处，或点击上传</div>
         <template #tip>
-          <div class="el-upload__tip">字段：name, mw_type, host, port, version, business_system, owner, env, remark, enabled, meta</div>
+          <div class="el-upload__tip">字段：ip, cidr, version, status, business_system, owner, env, idc, remark, tags</div>
         </template>
       </el-upload>
 
@@ -157,11 +163,10 @@
         <el-table v-if="(importResult.preview || []).length" :data="importResult.preview" stripe class="error-table">
           <el-table-column prop="row" label="行号" width="90" />
           <el-table-column prop="action" label="动作" width="110" />
-          <el-table-column prop="name" label="名称" min-width="160" />
-          <el-table-column prop="mw_type" label="类型" width="140" />
-          <el-table-column prop="host" label="主机" min-width="160" />
-          <el-table-column prop="port" label="端口" width="90" />
-          <el-table-column prop="version" label="版本" width="120" />
+          <el-table-column prop="ip" label="IP" width="160" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column prop="business_system" label="业务系统" min-width="160" />
+          <el-table-column prop="owner" label="负责人" width="120" />
         </el-table>
 
         <el-table v-if="(importResult.errors || []).length" :data="importResult.errors" stripe class="error-table">
@@ -180,74 +185,84 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { credsAPI, importAPI, middlewareAPI, systemsAPI } from '@/api/services'
+import { dictAPI, importAPI, ipAPI, systemsAPI } from '@/api/services'
 import { saveBlob } from '@/utils/download'
 
-const items = ref([])
-const types = ref([{ value: 'other', label: 'OTHER' }])
+const ips = ref([])
+const statuses = ref([])
+const versions = ref([])
 const systems = ref([])
-const credentials = ref([])
+const idcs = ref([])
+
+const q = ref('')
+const status = ref('')
+const systemId = ref(null)
+const idcId = ref(null)
+
+const loadMeta = async () => {
+  const [s, sys, idc] = await Promise.allSettled([ipAPI.statuses(), systemsAPI.list(), dictAPI.listIdcs()])
+  if (s.status === 'fulfilled') {
+    statuses.value = s.value.statuses || []
+    versions.value = s.value.versions || []
+  }
+  if (sys.status === 'fulfilled') systems.value = sys.value.systems || []
+  if (idc.status === 'fulfilled') idcs.value = idc.value.idcs || []
+}
+
+const load = async () => {
+  try {
+    const data = await ipAPI.list({
+      q: q.value || undefined,
+      status: status.value || undefined,
+      system_id: systemId.value || undefined,
+      idc_id: idcId.value || undefined
+    })
+    ips.value = data.ips || []
+  } catch (e) {
+    ElMessage.error(e.message || '加载失败')
+  }
+}
+
+watch([status, systemId, idcId], () => load())
 
 const dialogVisible = ref(false)
 const saving = ref(false)
 const formRef = ref()
 const editingId = ref(null)
 
-const importVisible = ref(false)
-const importing = ref(false)
-const selectedFile = ref(null)
-const fileList = ref([])
-const importResult = ref(null)
-const importUpsert = ref(false)
-
 const form = reactive({
-  name: '',
-  mw_type: 'other',
-  host: '',
-  port: 6379,
-  version: '',
+  ip: '',
+  cidr: null,
+  version: 'ipv4',
+  status: 'free',
   business_system_id: null,
+  idc_id: null,
   owner: '',
   env: '',
-  remark: '',
-  credential_id: null,
-  enabled: true,
-  meta: ''
+  tagsText: '',
+  remark: ''
 })
 
 const rules = {
-  name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  mw_type: [{ required: true, message: '请选择类型', trigger: 'change' }],
-  host: [{ required: true, message: '请输入主机', trigger: 'blur' }],
-  port: [{ required: true, message: '请输入端口', trigger: 'blur' }]
+  ip: [{ required: true, message: '请输入IP', trigger: 'blur' }]
 }
 
-const dialogTitle = computed(() => (editingId.value ? '编辑中间件' : '新增中间件'))
-
-const load = async () => {
-  const [listRes, typeRes, sysRes, credRes] = await Promise.allSettled([middlewareAPI.list(), middlewareAPI.getTypes(), systemsAPI.list(), credsAPI.list()])
-  if (listRes.status === 'fulfilled') items.value = listRes.value.middlewares || []
-  if (typeRes.status === 'fulfilled') types.value = typeRes.value.types || types.value
-  if (sysRes.status === 'fulfilled') systems.value = sysRes.value.systems || []
-  if (credRes.status === 'fulfilled') credentials.value = credRes.value.credentials || []
-}
+const dialogTitle = computed(() => (editingId.value ? '编辑IP' : '新增IP'))
 
 const resetForm = () => {
   editingId.value = null
-  form.name = ''
-  form.mw_type = 'other'
-  form.host = ''
-  form.port = 6379
-  form.version = ''
+  form.ip = ''
+  form.cidr = null
+  form.version = 'ipv4'
+  form.status = 'free'
   form.business_system_id = null
+  form.idc_id = null
   form.owner = ''
   form.env = ''
+  form.tagsText = ''
   form.remark = ''
-  form.credential_id = null
-  form.enabled = true
-  form.meta = ''
   formRef.value?.clearValidate?.()
 }
 
@@ -258,18 +273,16 @@ const openCreate = () => {
 
 const openEdit = (row) => {
   editingId.value = row.id
-  form.name = row.name || ''
-  form.mw_type = row.mw_type || 'other'
-  form.host = row.host || ''
-  form.port = row.port || 0
-  form.version = row.version || ''
+  form.ip = row.ip
+  form.cidr = row.cidr
+  form.version = row.version || 'ipv4'
+  form.status = row.status || 'free'
   form.business_system_id = row.business_system_id || null
+  form.idc_id = row.idc_id || null
   form.owner = row.owner || ''
   form.env = row.env || ''
+  form.tagsText = (row.tags || []).join(',')
   form.remark = row.remark || ''
-  form.credential_id = row.credential_id || null
-  form.enabled = !!row.enabled
-  form.meta = row.meta ? JSON.stringify(row.meta) : ''
   dialogVisible.value = true
 }
 
@@ -278,26 +291,22 @@ const onSave = async () => {
     if (!valid) return
     saving.value = true
     try {
-      let metaObj = {}
-      if (form.meta.trim()) metaObj = JSON.parse(form.meta)
       const payload = {
-        name: form.name,
-        mw_type: form.mw_type,
-        host: form.host,
-        port: form.port,
-        version: form.version || null,
+        ip: form.ip,
+        cidr: form.cidr || null,
+        version: form.version,
+        status: form.status,
         business_system_id: form.business_system_id || null,
+        idc_id: form.idc_id || null,
         owner: form.owner || null,
         env: form.env || null,
         remark: form.remark || null,
-        credential_id: form.credential_id || null,
-        enabled: form.enabled,
-        meta: metaObj
+        tags: form.tagsText.split(',').map(s => s.trim()).filter(Boolean)
       }
       if (editingId.value) {
-        await middlewareAPI.update(editingId.value, payload)
+        await ipAPI.update(editingId.value, payload)
       } else {
-        await middlewareAPI.create(payload)
+        await ipAPI.create(payload)
       }
       ElMessage.success('保存成功')
       dialogVisible.value = false
@@ -312,13 +321,20 @@ const onSave = async () => {
 
 const onDelete = async (row) => {
   try {
-    await ElMessageBox.confirm(`确认删除中间件「${row.name}」？`, '提示', { type: 'warning' })
-    await middlewareAPI.delete(row.id)
+    await ElMessageBox.confirm(`确认删除IP「${row.ip}」？`, '提示', { type: 'warning' })
+    await ipAPI.delete(row.id)
     ElMessage.success('已删除')
     await load()
   } catch {
   }
 }
+
+const importVisible = ref(false)
+const importing = ref(false)
+const selectedFile = ref(null)
+const fileList = ref([])
+const importResult = ref(null)
+const importUpsert = ref(false)
 
 const openImport = () => {
   importVisible.value = true
@@ -339,10 +355,24 @@ const onFileRemove = () => {
 
 const downloadTemplate = async (format) => {
   try {
-    const blob = await importAPI.downloadTemplate('middlewares', format)
-    saveBlob(blob, `middlewares_template.${format}`)
+    const blob = await importAPI.downloadTemplate('ips', format)
+    saveBlob(blob, `ips_template.${format}`)
   } catch (e) {
     ElMessage.error(e.message || '下载失败')
+  }
+}
+
+const doPreview = async () => {
+  if (!selectedFile.value) return
+  importing.value = true
+  try {
+    const res = await importAPI.importFile('ips', selectedFile.value, { dryRun: true, mode: importUpsert.value ? 'upsert' : 'insert' })
+    importResult.value = res
+    ElMessage.success('校验完成')
+  } catch (e) {
+    ElMessage.error(e.message || '校验失败')
+  } finally {
+    importing.value = false
   }
 }
 
@@ -350,7 +380,7 @@ const doImport = async () => {
   if (!selectedFile.value) return
   importing.value = true
   try {
-    const res = await importAPI.importFile('middlewares', selectedFile.value, { dryRun: false, mode: importUpsert.value ? 'upsert' : 'insert' })
+    const res = await importAPI.importFile('ips', selectedFile.value, { dryRun: false, mode: importUpsert.value ? 'upsert' : 'insert' })
     importResult.value = res
     ElMessage.success('导入完成')
     await load()
@@ -361,21 +391,10 @@ const doImport = async () => {
   }
 }
 
-const doPreview = async () => {
-  if (!selectedFile.value) return
-  importing.value = true
-  try {
-    const res = await importAPI.importFile('middlewares', selectedFile.value, { dryRun: true, mode: importUpsert.value ? 'upsert' : 'insert' })
-    importResult.value = res
-    ElMessage.success('校验完成')
-  } catch (e) {
-    ElMessage.error(e.message || '校验失败')
-  } finally {
-    importing.value = false
-  }
-}
-
-onMounted(load)
+onMounted(async () => {
+  await loadMeta()
+  await load()
+})
 </script>
 
 <style scoped>
@@ -388,34 +407,33 @@ onMounted(load)
   justify-content: space-between;
   padding: 12px 16px;
 }
-.actions {
-  display: flex;
-  gap: 10px;
-}
 .title {
   font-size: 16px;
   font-weight: 700;
   color: #0f172a;
 }
+.actions {
+  display: flex;
+  gap: 10px;
+}
 .card {
   margin: 0 8px;
 }
-
+.filters {
+  margin-bottom: 12px;
+}
 .import-actions {
   display: flex;
   gap: 10px;
   margin: 12px 0;
   align-items: center;
 }
-
 .spacer {
   flex: 1;
 }
-
 .muted {
   color: #64748b;
 }
-
 .error-table {
   margin-top: 12px;
 }

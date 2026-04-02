@@ -28,6 +28,7 @@
         </el-table-column>
         <el-table-column label="操作" width="220">
           <template #default="{ row }">
+            <el-button text @click="openContacts(row)">联系人</el-button>
             <el-button text @click="openEdit(row)">编辑</el-button>
             <el-button text type="danger" @click="onDelete(row)">删除</el-button>
           </template>
@@ -74,6 +75,57 @@
       <template #footer>
         <el-button @click="dialogVisible=false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="onSave">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="contactsVisible" :title="contactsTitle" width="780px">
+      <el-form :model="contactForm" label-position="top">
+        <el-row :gutter="12">
+          <el-col :span="6">
+            <el-form-item label="姓名">
+              <el-input v-model="contactForm.name" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="角色">
+              <el-input v-model="contactForm.role" placeholder="例如：运维/开发/值班" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="电话">
+              <el-input v-model="contactForm.phone" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="邮箱">
+              <el-input v-model="contactForm.email" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="备注">
+          <el-input v-model="contactForm.remark" />
+        </el-form-item>
+        <div class="contact-actions">
+          <el-button @click="loadContacts">刷新</el-button>
+          <el-button type="primary" :loading="savingContacts" @click="addContact">添加联系人</el-button>
+        </div>
+      </el-form>
+
+      <el-table :data="contacts" stripe class="contacts-table">
+        <el-table-column prop="name" label="姓名" width="140" />
+        <el-table-column prop="role" label="角色" width="160" />
+        <el-table-column prop="phone" label="电话" width="160" />
+        <el-table-column prop="email" label="邮箱" min-width="200" />
+        <el-table-column prop="remark" label="备注" min-width="180" />
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button text type="danger" @click="deleteContact(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <template #footer>
+        <el-button @click="contactsVisible=false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -181,6 +233,88 @@ const onDelete = async (row) => {
   }
 }
 
+const contactsVisible = ref(false)
+const contactsSystemId = ref(null)
+const contacts = ref([])
+const savingContacts = ref(false)
+
+const contactsTitle = computed(() => {
+  const s = systems.value.find(x => x.id === contactsSystemId.value)
+  return s ? `联系人 - ${s.name}` : '联系人'
+})
+
+const contactForm = reactive({
+  name: '',
+  role: '',
+  phone: '',
+  email: '',
+  remark: ''
+})
+
+const resetContactForm = () => {
+  contactForm.name = ''
+  contactForm.role = ''
+  contactForm.phone = ''
+  contactForm.email = ''
+  contactForm.remark = ''
+}
+
+const openContacts = async (row) => {
+  contactsSystemId.value = row.id
+  contactsVisible.value = true
+  resetContactForm()
+  await loadContacts()
+}
+
+const loadContacts = async () => {
+  if (!contactsSystemId.value) return
+  try {
+    const data = await systemsAPI.listContacts(contactsSystemId.value)
+    contacts.value = data.contacts || []
+  } catch (e) {
+    ElMessage.error(e.message || '加载失败')
+  }
+}
+
+const addContact = async () => {
+  if (!contactsSystemId.value) return
+  if (!contactForm.name.trim()) {
+    ElMessage.warning('请输入姓名')
+    return
+  }
+  savingContacts.value = true
+  try {
+    await systemsAPI.createContact(contactsSystemId.value, {
+      name: contactForm.name,
+      role: contactForm.role || null,
+      phone: contactForm.phone || null,
+      email: contactForm.email || null,
+      remark: contactForm.remark || null
+    })
+    ElMessage.success('已添加')
+    resetContactForm()
+    await loadContacts()
+  } catch (e) {
+    ElMessage.error(e.message || '添加失败')
+  } finally {
+    savingContacts.value = false
+  }
+}
+
+const deleteContact = async (row) => {
+  if (!contactsSystemId.value) return
+  savingContacts.value = true
+  try {
+    await systemsAPI.deleteContact(contactsSystemId.value, row.id)
+    ElMessage.success('已删除')
+    await loadContacts()
+  } catch (e) {
+    ElMessage.error(e.message || '删除失败')
+  } finally {
+    savingContacts.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -208,5 +342,16 @@ onMounted(load)
 }
 .tag {
   margin-right: 6px;
+}
+
+.contact-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0 12px;
+}
+
+.contacts-table {
+  margin-top: 6px;
 }
 </style>

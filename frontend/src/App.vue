@@ -17,8 +17,12 @@
           </template>
           <el-menu-item index="/assets/overview">资产总览</el-menu-item>
           <el-menu-item index="/assets/systems">业务系统</el-menu-item>
+          <el-menu-item index="/assets/credentials">凭据库</el-menu-item>
           <el-menu-item index="/assets/groups">资产分组</el-menu-item>
           <el-menu-item index="/assets/list">资产列表</el-menu-item>
+          <el-menu-item index="/assets/ips">IP资产</el-menu-item>
+          <el-menu-item index="/assets/idcs">机房区域</el-menu-item>
+          <el-menu-item index="/assets/tags">标签体系</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="/database">
           <template #title>

@@ -16,3 +16,6 @@ openpyxl>=3.1.2,<4
 
 # Ops (ssh)
 paramiko>=3.4.0,<4
+
+# Credentials (encryption)
+cryptography>=42.0.0,<44

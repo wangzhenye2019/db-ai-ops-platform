@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 from db_ai_ops.extensions import db
 from db_ai_ops.models import Database, DatabaseType
@@ -18,10 +18,12 @@ def list_databases():
 def create_database():
     data = request.get_json() or {}
 
-    required_fields = ['name', 'db_type', 'host', 'port', 'database', 'username', 'password']
+    required_fields = ['name', 'db_type', 'host', 'port', 'database', 'username']
     for field in required_fields:
         if field not in data:
             return jsonify({'error': f'{field} is required'}), 400
+    if not data.get('password') and not data.get('credential_id'):
+        return jsonify({'error': 'password or credential_id is required'}), 400
 
     try:
         db_type = DatabaseType(data['db_type'])
@@ -35,7 +37,8 @@ def create_database():
         port=data['port'],
         database=data['database'],
         username=data['username'],
-        password=data['password'],
+        password=data.get('password') or '',
+        credential_id=int(data['credential_id']) if data.get('credential_id') else None,
         business_system_id=int(data['business_system_id']) if data.get('business_system_id') else None,
         owner=(data.get('owner') or '').strip() or None,
         env=(data.get('env') or '').strip() or None,
@@ -70,6 +73,9 @@ def update_database(database_id):
 
     if 'business_system_id' in data:
         database.business_system_id = int(data['business_system_id']) if data.get('business_system_id') else None
+
+    if 'credential_id' in data:
+        database.credential_id = int(data['credential_id']) if data.get('credential_id') else None
 
     if 'db_type' in data:
         try:
@@ -107,6 +113,15 @@ def test_connection(database_id):
     database = Database.query.get_or_404(database_id)
 
     try:
+        password = database.password
+        if (not password) and database.credential_id:
+            from db_ai_ops.crypto import decrypt_text
+            from db_ai_ops.models import Credential
+
+            c = Credential.query.get(database.credential_id)
+            if c:
+                password = decrypt_text(c.secret_encrypted, current_app.config['SECRET_KEY'])
+
         if database.db_type == DatabaseType.MYSQL:
             try:
                 import pymysql
@@ -116,7 +131,7 @@ def test_connection(database_id):
                 host=database.host,
                 port=database.port,
                 user=database.username,
-                password=database.password,
+                password=password,
                 database=database.database
             )
             conn.close()
@@ -129,7 +144,7 @@ def test_connection(database_id):
                 host=database.host,
                 port=database.port,
                 user=database.username,
-                password=database.password,
+                password=password,
                 database=database.database
             )
             conn.close()
@@ -139,7 +154,7 @@ def test_connection(database_id):
             except ImportError:
                 return jsonify({'status': 'failed', 'message': 'Missing driver: cx_Oracle. Install backend/requirements-drivers.txt'}), 400
             dsn = cx_Oracle.makedsn(database.host, database.port, database.database)
-            conn = cx_Oracle.connect(database.username, database.password, dsn)
+            conn = cx_Oracle.connect(database.username, password, dsn)
             conn.close()
         elif database.db_type == DatabaseType.MSSQL:
             try:
@@ -150,7 +165,7 @@ def test_connection(database_id):
                 server=database.host,
                 port=database.port,
                 user=database.username,
-                password=database.password,
+                password=password,
                 database=database.database
             )
             conn.close()

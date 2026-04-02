@@ -130,7 +130,37 @@ export const systemsAPI = {
   create: (data) => api.post('/systems', data),
   update: (id, data) => api.put(`/systems/${id}`, data),
   delete: (id) => api.delete(`/systems/${id}`),
-  assets: (id) => api.get(`/systems/${id}/assets`)
+  assets: (id) => api.get(`/systems/${id}/assets`),
+  listContacts: (id) => api.get(`/systems/${id}/contacts`),
+  createContact: (id, data) => api.post(`/systems/${id}/contacts`, data),
+  deleteContact: (id, contactId) => api.delete(`/systems/${id}/contacts/${contactId}`)
+}
+
+export const dictAPI = {
+  listTags: (params) => api.get('/dict/tags', { params }),
+  createTag: (data) => api.post('/dict/tags', data),
+  deleteTag: (id) => api.delete(`/dict/tags/${id}`),
+  listIdcs: (params) => api.get('/dict/idcs', { params }),
+  createIdc: (data) => api.post('/dict/idcs', data),
+  updateIdc: (id, data) => api.put(`/dict/idcs/${id}`, data),
+  deleteIdc: (id) => api.delete(`/dict/idcs/${id}`)
+}
+
+export const credsAPI = {
+  list: () => api.get('/credentials'),
+  types: () => api.get('/credentials/types'),
+  create: (data) => api.post('/credentials', data),
+  get: (id, params) => api.get(`/credentials/${id}`, { params }),
+  update: (id, data) => api.put(`/credentials/${id}`, data),
+  delete: (id) => api.delete(`/credentials/${id}`)
+}
+
+export const ipAPI = {
+  list: (params) => api.get('/ips', { params }),
+  create: (data) => api.post('/ips', data),
+  update: (id, data) => api.put(`/ips/${id}`, data),
+  delete: (id) => api.delete(`/ips/${id}`),
+  statuses: () => api.get('/ips/statuses')
 }
 
 export const importAPI = {

@@ -34,6 +34,7 @@ def create_middleware():
         host=host,
         port=int(port),
         version=(data.get('version') or '').strip() or None,
+        credential_id=int(data['credential_id']) if data.get('credential_id') else None,
         business_system_id=int(data['business_system_id']) if data.get('business_system_id') else None,
         owner=(data.get('owner') or '').strip() or None,
         env=(data.get('env') or '').strip() or None,
@@ -82,6 +83,9 @@ def update_middleware(mw_id):
 
     if 'business_system_id' in data:
         m.business_system_id = int(data['business_system_id']) if data.get('business_system_id') else None
+
+    if 'credential_id' in data:
+        m.credential_id = int(data['credential_id']) if data.get('credential_id') else None
 
     db.session.commit()
     return jsonify(m.to_dict())

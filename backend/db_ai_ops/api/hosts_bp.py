@@ -37,6 +37,7 @@ def create_host():
         os_version=(data.get('os_version') or '').strip() or None,
         username=data.get('username'),
         password=data.get('password'),
+        credential_id=int(data['credential_id']) if data.get('credential_id') else None,
         business_system_id=int(data['business_system_id']) if data.get('business_system_id') else None,
         owner=(data.get('owner') or '').strip() or None,
         env=(data.get('env') or '').strip() or None,
@@ -86,6 +87,9 @@ def update_host(host_id):
 
     if 'business_system_id' in data:
         h.business_system_id = int(data['business_system_id']) if data.get('business_system_id') else None
+
+    if 'credential_id' in data:
+        h.credential_id = int(data['credential_id']) if data.get('credential_id') else None
 
     db.session.commit()
     return jsonify(h.to_dict())

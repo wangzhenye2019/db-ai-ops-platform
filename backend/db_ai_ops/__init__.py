@@ -114,7 +114,10 @@ def create_app(config_class=Config):
             audit_bp,
             import_bp,
             assets_bp,
-            systems_bp
+            systems_bp,
+            creds_bp,
+            dict_bp,
+            ip_bp
         )
 
         app.register_blueprint(backup_bp, url_prefix='/api')
@@ -131,6 +134,9 @@ def create_app(config_class=Config):
         app.register_blueprint(import_bp, url_prefix='/api')
         app.register_blueprint(assets_bp, url_prefix='/api')
         app.register_blueprint(systems_bp, url_prefix='/api')
+        app.register_blueprint(creds_bp, url_prefix='/api')
+        app.register_blueprint(dict_bp, url_prefix='/api')
+        app.register_blueprint(ip_bp, url_prefix='/api')
 
     Config.init_app(app)
     return app

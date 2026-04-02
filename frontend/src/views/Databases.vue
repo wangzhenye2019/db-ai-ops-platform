@@ -88,6 +88,11 @@
         <el-form-item label="密码" prop="password">
           <el-input v-model="form.password" type="password" show-password />
         </el-form-item>
+        <el-form-item label="凭据（可选）">
+          <el-select v-model="form.credential_id" clearable filterable placeholder="选择凭据（优先使用）">
+            <el-option v-for="c in credentials" :key="c.id" :label="`${c.name}${c.username ? ' / '+c.username : ''}`" :value="c.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="版本">
           <el-input v-model="form.version" />
         </el-form-item>
@@ -174,12 +179,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { databaseAPI, importAPI, systemsAPI } from '@/api/services'
+import { credsAPI, databaseAPI, importAPI, systemsAPI } from '@/api/services'
 import { saveBlob } from '@/utils/download'
 
 const databases = ref([])
 const dbTypes = ref([])
 const systems = ref([])
+const credentials = ref([])
 const showAddDialog = ref(false)
 const editingDatabase = ref(null)
 const formRef = ref(null)
@@ -199,6 +205,7 @@ const form = ref({
   database: '',
   username: '',
   password: '',
+  credential_id: null,
   business_system_id: null,
   owner: '',
   env: '',
@@ -243,6 +250,14 @@ const loadSystems = async () => {
   }
 }
 
+const loadCredentials = async () => {
+  try {
+    const data = await credsAPI.list()
+    credentials.value = data.credentials || []
+  } catch {
+  }
+}
+
 const onDbTypeChange = () => {
   const type = dbTypes.value.find(t => t.value === form.value.db_type)
   if (type) {
@@ -270,6 +285,7 @@ const handleSubmit = async () => {
         const payload = {
           ...form.value,
           business_system_id: form.value.business_system_id || null,
+        credential_id: form.value.credential_id || null,
           owner: form.value.owner || null,
           env: form.value.env || null,
           version: form.value.version || null,
@@ -331,6 +347,7 @@ const resetForm = () => {
     database: '',
     username: '',
     password: '',
+    credential_id: null,
     business_system_id: null,
     owner: '',
     env: '',
@@ -402,6 +419,7 @@ onMounted(() => {
   loadDatabases()
   loadDbTypes()
   loadSystems()
+  loadCredentials()
 })
 </script>
 

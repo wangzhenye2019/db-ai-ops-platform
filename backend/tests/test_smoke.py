@@ -31,6 +31,10 @@ def test_auth_and_core_endpoints():
         '/api/hosts',
         '/api/middlewares',
         '/api/systems',
+        '/api/credentials',
+        '/api/ips',
+        '/api/dict/idcs',
+        '/api/dict/tags',
         '/api/kb/articles',
         '/api/ops/tasks',
         '/api/inspection/reports',
@@ -100,3 +104,31 @@ def test_business_systems_crud_smoke():
 
     r2 = client.get('/api/systems', headers=headers)
     assert r2.status_code == 200
+
+    systems = r2.get_json().get('systems') or []
+    sid = systems[0]['id']
+    c = client.post(f'/api/systems/{sid}/contacts', json={'name': '李四', 'role': '运维'}, headers=headers)
+    assert c.status_code in (201, 400)
+
+
+def test_credentials_admin_smoke():
+    client = _client()
+    token = _login(client)
+    headers = {'Authorization': f'Bearer {token}'}
+
+    r = client.post('/api/credentials', json={'name': 'ssh-root', 'cred_type': 'ssh_password', 'username': 'root', 'secret': 'pwd'}, headers=headers)
+    assert r.status_code in (201, 400)
+
+    lst = client.get('/api/credentials', headers=headers)
+    assert lst.status_code == 200
+
+
+def test_ip_assets_smoke():
+    client = _client()
+    token = _login(client)
+    headers = {'Authorization': f'Bearer {token}'}
+
+    r = client.post('/api/ips', json={'ip': '10.255.0.1', 'cidr': 24, 'version': 'ipv4', 'status': 'free'}, headers=headers)
+    assert r.status_code in (201, 400)
+    lst = client.get('/api/ips', headers=headers)
+    assert lst.status_code == 200

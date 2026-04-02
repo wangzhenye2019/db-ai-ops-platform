@@ -1,4 +1,5 @@
 import datetime
+import os
 
 from db_ai_ops.extensions import celery, db
 from db_ai_ops.models import InspectionReport, InspectionReportStatus, OperationTask, OperationTaskStatus
@@ -19,7 +20,15 @@ def _ssh_exec(host_obj, command, timeout_seconds=30):
 
     if not host_obj.username:
         raise Exception('Host username is empty')
-    if not host_obj.password:
+    password = host_obj.password
+    if not password and getattr(host_obj, 'credential_id', None):
+        from db_ai_ops.crypto import decrypt_text
+        from db_ai_ops.models import Credential
+
+        c = Credential.query.get(host_obj.credential_id)
+        if c:
+            password = decrypt_text(c.secret_encrypted, os.getenv('SECRET_KEY', ''))
+    if not password:
         raise Exception('Host password is empty')
 
     client = paramiko.SSHClient()
@@ -28,7 +37,7 @@ def _ssh_exec(host_obj, command, timeout_seconds=30):
         hostname=host_obj.host,
         port=host_obj.port,
         username=host_obj.username,
-        password=host_obj.password,
+        password=password,
         timeout=10,
         banner_timeout=10,
         auth_timeout=10

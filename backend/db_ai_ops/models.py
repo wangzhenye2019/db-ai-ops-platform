@@ -88,6 +88,72 @@ class BusinessSystem(db.Model):
         }
 
 
+class BusinessContact(db.Model):
+    __tablename__ = 'business_contacts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    role = db.Column(db.String(100))
+    phone = db.Column(db.String(50))
+    email = db.Column(db.String(120))
+    remark = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    system = db.relationship('BusinessSystem', lazy='joined', backref=db.backref('contacts', lazy=True, cascade='all, delete-orphan'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'system_id': self.system_id,
+            'name': self.name,
+            'role': self.role,
+            'phone': self.phone,
+            'email': self.email,
+            'remark': self.remark,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class CredentialType(enum.Enum):
+    SSH_PASSWORD = "ssh_password"
+    DB_PASSWORD = "db_password"
+    GENERIC = "generic"
+
+
+class Credential(db.Model):
+    __tablename__ = 'credentials'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    cred_type = db.Column(db.Enum(CredentialType), nullable=False, default=CredentialType.GENERIC)
+    username = db.Column(db.String(100))
+    secret_encrypted = db.Column(db.Text, nullable=False)
+    business_system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'))
+    owner = db.Column(db.String(100))
+    tags = db.Column(db.JSON)
+    enabled = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    business_system = db.relationship('BusinessSystem', lazy='joined')
+
+    def to_safe_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'cred_type': self.cred_type.value if self.cred_type else None,
+            'username': self.username,
+            'business_system_id': self.business_system_id,
+            'business_system_name': self.business_system.name if self.business_system else None,
+            'owner': self.owner,
+            'tags': self.tags or [],
+            'enabled': self.enabled,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+
 class DatabaseType(enum.Enum):
     MYSQL = "mysql"
     POSTGRESQL = "postgresql"
@@ -106,6 +172,7 @@ class Database(db.Model):
     database = db.Column(db.String(100), nullable=False)
     username = db.Column(db.String(100), nullable=False)
     password = db.Column(db.String(255), nullable=False)
+    credential_id = db.Column(db.Integer, db.ForeignKey('credentials.id'))
     business_system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'))
     owner = db.Column(db.String(100))
     env = db.Column(db.String(50))
@@ -116,6 +183,7 @@ class Database(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     business_system = db.relationship('BusinessSystem', lazy='joined')
+    credential = db.relationship('Credential', lazy='joined')
     backups = db.relationship('Backup', backref='database', lazy=True, cascade='all, delete-orphan')
     schedules = db.relationship('Schedule', backref='database', lazy=True, cascade='all, delete-orphan')
 
@@ -128,6 +196,7 @@ class Database(db.Model):
             'port': self.port,
             'database': self.database,
             'username': self.username,
+            'credential_id': self.credential_id,
             'business_system_id': self.business_system_id,
             'business_system_name': self.business_system.name if self.business_system else None,
             'owner': self.owner,
@@ -219,6 +288,7 @@ class Host(db.Model):
     os_version = db.Column(db.String(100))
     username = db.Column(db.String(100))
     password = db.Column(db.String(255))
+    credential_id = db.Column(db.Integer, db.ForeignKey('credentials.id'))
     business_system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'))
     owner = db.Column(db.String(100))
     env = db.Column(db.String(50))
@@ -230,6 +300,7 @@ class Host(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     business_system = db.relationship('BusinessSystem', lazy='joined')
+    credential = db.relationship('Credential', lazy='joined')
 
     def to_dict(self):
         return {
@@ -241,6 +312,7 @@ class Host(db.Model):
             'hostname': self.hostname,
             'os_version': self.os_version,
             'username': self.username,
+            'credential_id': self.credential_id,
             'business_system_id': self.business_system_id,
             'business_system_name': self.business_system.name if self.business_system else None,
             'owner': self.owner,
@@ -274,6 +346,7 @@ class Middleware(db.Model):
     host = db.Column(db.String(255), nullable=False)
     port = db.Column(db.Integer, nullable=False)
     version = db.Column(db.String(50))
+    credential_id = db.Column(db.Integer, db.ForeignKey('credentials.id'))
     business_system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'))
     owner = db.Column(db.String(100))
     env = db.Column(db.String(50))
@@ -284,6 +357,7 @@ class Middleware(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     business_system = db.relationship('BusinessSystem', lazy='joined')
+    credential = db.relationship('Credential', lazy='joined')
 
     def to_dict(self):
         return {
@@ -293,6 +367,7 @@ class Middleware(db.Model):
             'host': self.host,
             'port': self.port,
             'version': self.version,
+            'credential_id': self.credential_id,
             'business_system_id': self.business_system_id,
             'business_system_name': self.business_system.name if self.business_system else None,
             'owner': self.owner,
@@ -436,6 +511,128 @@ class AssetType(enum.Enum):
     HOST = "host"
     DATABASE = "database"
     MIDDLEWARE = "middleware"
+    IP = "ip"
+
+
+class AssetSystemLink(db.Model):
+    __tablename__ = 'asset_system_links'
+
+    id = db.Column(db.Integer, primary_key=True)
+    system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'), nullable=False)
+    asset_type = db.Column(db.Enum(AssetType), nullable=False)
+    asset_id = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('system_id', 'asset_type', 'asset_id', name='uq_system_asset'),
+    )
+
+    system = db.relationship('BusinessSystem', lazy='joined')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'system_id': self.system_id,
+            'asset_type': self.asset_type.value if self.asset_type else None,
+            'asset_id': self.asset_id,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class TagCategory(enum.Enum):
+    ASSET = "asset"
+    SYSTEM = "system"
+
+
+class TagDict(db.Model):
+    __tablename__ = 'tag_dicts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(60), unique=True, nullable=False)
+    category = db.Column(db.Enum(TagCategory), nullable=False, default=TagCategory.ASSET)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'category': self.category.value if self.category else None,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class IdcDict(db.Model):
+    __tablename__ = 'idc_dicts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    region = db.Column(db.String(60))
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    remark = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'region': self.region,
+            'name': self.name,
+            'remark': self.remark,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class IpVersion(enum.Enum):
+    IPV4 = "ipv4"
+    IPV6 = "ipv6"
+
+
+class IpStatus(enum.Enum):
+    FREE = "free"
+    RESERVED = "reserved"
+    ALLOCATED = "allocated"
+
+
+class IpAsset(db.Model):
+    __tablename__ = 'ip_assets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ip = db.Column(db.String(64), unique=True, nullable=False)
+    cidr = db.Column(db.Integer)
+    version = db.Column(db.Enum(IpVersion), nullable=False, default=IpVersion.IPV4)
+    status = db.Column(db.Enum(IpStatus), nullable=False, default=IpStatus.FREE)
+    business_system_id = db.Column(db.Integer, db.ForeignKey('business_systems.id'))
+    owner = db.Column(db.String(100))
+    env = db.Column(db.String(50))
+    idc_id = db.Column(db.Integer, db.ForeignKey('idc_dicts.id'))
+    remark = db.Column(db.String(255))
+    tags = db.Column(db.JSON)
+    assigned_asset_type = db.Column(db.Enum(AssetType))
+    assigned_asset_id = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    business_system = db.relationship('BusinessSystem', lazy='joined')
+    idc = db.relationship('IdcDict', lazy='joined')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'ip': self.ip,
+            'cidr': self.cidr,
+            'version': self.version.value if self.version else None,
+            'status': self.status.value if self.status else None,
+            'business_system_id': self.business_system_id,
+            'business_system_name': self.business_system.name if self.business_system else None,
+            'owner': self.owner,
+            'env': self.env,
+            'idc_id': self.idc_id,
+            'idc_name': self.idc.name if self.idc else None,
+            'remark': self.remark,
+            'tags': self.tags or [],
+            'assigned_asset_type': self.assigned_asset_type.value if self.assigned_asset_type else None,
+            'assigned_asset_id': self.assigned_asset_id,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
 
 
 class AssetGroup(db.Model):

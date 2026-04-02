@@ -12,9 +12,16 @@ def auto_migrate_sqlite(engine):
         return
 
     table_columns = {
+        'credentials': {
+        },
+        'business_systems': {
+        },
+        'business_contacts': {
+        },
         'hosts': {
             'hostname': 'TEXT',
             'os_version': 'TEXT',
+            'credential_id': 'INTEGER',
             'business_system_id': 'INTEGER',
             'owner': 'TEXT',
             'env': 'TEXT',
@@ -22,6 +29,7 @@ def auto_migrate_sqlite(engine):
             'remark': 'TEXT'
         },
         'databases': {
+            'credential_id': 'INTEGER',
             'business_system_id': 'INTEGER',
             'owner': 'TEXT',
             'env': 'TEXT',
@@ -29,6 +37,7 @@ def auto_migrate_sqlite(engine):
             'remark': 'TEXT'
         },
         'middlewares': {
+            'credential_id': 'INTEGER',
             'business_system_id': 'INTEGER',
             'owner': 'TEXT',
             'env': 'TEXT',

@@ -7,8 +7,12 @@ import Login from '@/views/Login.vue'
 import { getToken } from '@/utils/auth'
 import AssetsOverview from '@/views/assets/Overview.vue'
 import AssetSystems from '@/views/assets/Systems.vue'
+import AssetCredentials from '@/views/assets/Credentials.vue'
 import AssetGroups from '@/views/assets/Groups.vue'
 import AssetList from '@/views/assets/List.vue'
+import IPAssets from '@/views/assets/IPAssets.vue'
+import AssetIdcs from '@/views/assets/Idcs.vue'
+import AssetTags from '@/views/assets/Tags.vue'
 import Hosts from '@/views/servers/Hosts.vue'
 import ServerBackups from '@/views/servers/Backups.vue'
 import ServerSchedules from '@/views/servers/Schedules.vue'
@@ -50,6 +54,11 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/assets/credentials',
+    component: AssetCredentials,
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/assets/groups',
     component: AssetGroups,
     meta: { requiresAuth: true }
@@ -57,6 +66,21 @@ const routes = [
   {
     path: '/assets/list',
     component: AssetList,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/assets/ips',
+    component: IPAssets,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/assets/idcs',
+    component: AssetIdcs,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/assets/tags',
+    component: AssetTags,
     meta: { requiresAuth: true }
   },
   {

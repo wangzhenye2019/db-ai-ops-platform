@@ -13,6 +13,7 @@
             <el-option label="主机" value="host" />
             <el-option label="数据库" value="database" />
             <el-option label="中间件" value="middleware" />
+            <el-option label="IP" value="ip" />
           </el-select>
         </el-col>
         <el-col :span="6">
