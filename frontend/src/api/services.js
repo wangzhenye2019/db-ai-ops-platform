@@ -187,3 +187,27 @@ export const agentAPI = {
   listMessages: (id) => api.get(`/agent/sessions/${id}/messages`),
   sendMessage: (id, data) => api.post(`/agent/sessions/${id}/messages`, data)
 }
+
+export const rbacAPI = {
+  // Permissions
+  listPermissions: () => api.get('/permissions'),
+  createPermission: (data) => api.post('/permissions', data),
+  deletePermission: (id) => api.delete(`/permissions/${id}`),
+
+  // Roles
+  listRoles: () => api.get('/roles'),
+  createRole: (data) => api.post('/roles', data),
+  getRole: (id) => api.get(`/roles/${id}`),
+  updateRole: (id, data) => api.put(`/roles/${id}`, data),
+  deleteRole: (id) => api.delete(`/roles/${id}`),
+
+  // Users
+  listUsers: () => api.get('/users'),
+  createUser: (data) => api.post('/users', data),
+  getUser: (id) => api.get(`/users/${id}`),
+  updateUser: (id, data) => api.put(`/users/${id}`, data),
+  deleteUser: (id) => api.delete(`/users/${id}`),
+
+  // Init
+  init: () => api.post('/rbac/init')
+}

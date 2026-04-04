@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 
 from db_ai_ops.extensions import db
 from db_ai_ops.models import Backup, BackupStatus
-from db_ai_ops.tasks import backup_database, cleanup_old_backups
+from db_ai_ops.tasks import backup_database, cleanup_old_backups, verify_backup, restore_database
 
 backup_bp = Blueprint('backup_bp', __name__)
 
@@ -44,6 +44,7 @@ def get_backup(backup_id):
 def create_backup():
     data = request.get_json()
     database_id = data.get('database_id')
+    backup_type = data.get('backup_type', 'full')  # full/incremental
 
     if not database_id:
         return jsonify({'error': 'database_id is required'}), 400
@@ -56,12 +57,13 @@ def create_backup():
     if not database.enabled:
         return jsonify({'error': 'Database is disabled'}), 400
 
-    result = backup_database.delay(database_id)
+    result = backup_database.delay(database_id, backup_type)
 
     return jsonify({
         'message': 'Backup started',
         'task_id': result.id,
-        'database_id': database_id
+        'database_id': database_id,
+        'backup_type': backup_type
     }), 201
 
 
@@ -102,6 +104,46 @@ def cleanup_backups():
     return jsonify({
         'message': 'Cleanup started',
         'task_id': result.id
+    })
+
+
+@backup_bp.route('/backups/<int:backup_id>/verify', methods=['POST'])
+def verify_backup_endpoint(backup_id):
+    backup = Backup.query.get_or_404(backup_id)
+    if backup.status != BackupStatus.SUCCESS:
+        return jsonify({'error': 'Backup not completed'}), 400
+
+    result = verify_backup.delay(backup_id)
+    return jsonify({
+        'message': 'Verification started',
+        'task_id': result.id,
+        'backup_id': backup_id
+    })
+
+
+@backup_bp.route('/backups/<int:backup_id>/restore', methods=['POST'])
+def restore_backup_endpoint(backup_id):
+    data = request.get_json() or {}
+    database_id = data.get('database_id')
+
+    if not database_id:
+        return jsonify({'error': 'database_id is required'}), 400
+
+    backup = Backup.query.get_or_404(backup_id)
+    if backup.status != BackupStatus.SUCCESS:
+        return jsonify({'error': 'Backup not completed'}), 400
+
+    from db_ai_ops.models import Database
+    database = Database.query.get(database_id)
+    if not database:
+        return jsonify({'error': 'Database not found'}), 404
+
+    result = restore_database.delay(database_id, backup_id)
+    return jsonify({
+        'message': 'Restore started',
+        'task_id': result.id,
+        'database_id': database_id,
+        'backup_id': backup_id
     })
 
 

@@ -16,6 +16,9 @@ from .creds_bp import creds_bp
 from .dict_bp import dict_bp
 from .ip_bp import ip_bp
 from .agent_bp import agent_bp
+from .rbac_bp import rbac_bp
+from .alert_bp import alert_bp
+from .sql_bp import sql_bp
 
 __all__ = [
     'backup_bp',
@@ -35,5 +38,8 @@ __all__ = [
     'creds_bp',
     'dict_bp',
     'ip_bp',
-    'agent_bp'
+    'agent_bp',
+    'rbac_bp',
+    'alert_bp',
+    'sql_bp'
 ]

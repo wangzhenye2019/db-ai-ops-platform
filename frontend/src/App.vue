@@ -80,6 +80,14 @@
           <el-icon><InfoFilled /></el-icon>
           <span>关于我们</span>
         </el-menu-item>
+        <el-sub-menu index="/system">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>系统</span>
+          </template>
+          <el-menu-item index="/system/roles">角色管理</el-menu-item>
+          <el-menu-item index="/system/users">用户管理</el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 

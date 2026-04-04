@@ -28,6 +28,8 @@ import OneClickInspection from '@/views/inspection/OneClick.vue'
 import InspectionReports from '@/views/inspection/Reports.vue'
 import About from '@/views/About.vue'
 import Agent from '@/views/Agent.vue'
+import SystemRoles from '@/views/system/Roles.vue'
+import SystemUsers from '@/views/system/Users.vue'
 
 const routes = [
   {
@@ -172,6 +174,16 @@ const routes = [
   {
     path: '/agent',
     component: Agent,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/system/roles',
+    component: SystemRoles,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/system/users',
+    component: SystemUsers,
     meta: { requiresAuth: true }
   }
 ]

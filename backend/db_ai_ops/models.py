@@ -11,6 +11,31 @@ user_roles = db.Table(
     db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True)
 )
 
+role_permissions = db.Table(
+    'role_permissions',
+    db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True),
+    db.Column('permission_id', db.Integer, db.ForeignKey('permissions.id'), primary_key=True)
+)
+
+
+class Permission(db.Model):
+    __tablename__ = 'permissions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    category = db.Column(db.String(50))  # 如: system, backup, monitor, sql
+    description = db.Column(db.String(255))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'code': self.code,
+            'category': self.category,
+            'description': self.description
+        }
+
 
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -18,12 +43,14 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     description = db.Column(db.String(255))
+    permissions = db.relationship('Permission', secondary=role_permissions, lazy='subquery')
 
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
-            'description': self.description
+            'description': self.description,
+            'permissions': [p.code for p in (self.permissions or [])]
         }
 
 
@@ -47,6 +74,22 @@ class User(db.Model):
 
     def role_names(self):
         return [r.name for r in (self.roles or [])]
+
+    def has_permission(self, permission_code):
+        """检查用户是否拥有某权限"""
+        for role in (self.roles or []):
+            for perm in (role.permissions or []):
+                if perm.code == permission_code:
+                    return True
+        return False
+
+    def get_all_permissions(self):
+        """获取用户所有权限"""
+        perms = set()
+        for role in (self.roles or []):
+            for perm in (role.permissions or []):
+                perms.add(perm.code)
+        return list(perms)
 
     def to_dict(self):
         return {
@@ -214,6 +257,7 @@ class BackupStatus(enum.Enum):
     RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"
+    INCREMENTAL = "incremental"
 
 
 class Backup(db.Model):
@@ -221,6 +265,7 @@ class Backup(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     database_id = db.Column(db.Integer, db.ForeignKey('databases.id'), nullable=False)
+    backup_type = db.Column(db.String(20), default='full')  # full/incremental
     status = db.Column(db.Enum(BackupStatus), default=BackupStatus.PENDING)
     file_path = db.Column(db.String(512))
     file_size = db.Column(db.BigInteger)
@@ -229,11 +274,15 @@ class Backup(db.Model):
     started_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    verify_status = db.Column(db.String(20))  # pending/verified/failed
+    verify_message = db.Column(db.Text)
+    checksum = db.Column(db.String(64))
 
     def to_dict(self):
         return {
             'id': self.id,
             'database_id': self.database_id,
+            'backup_type': self.backup_type,
             'status': self.status.value,
             'file_path': self.file_path,
             'file_size': self.file_size,
@@ -241,7 +290,10 @@ class Backup(db.Model):
             'error_message': self.error_message,
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'verify_status': self.verify_status,
+            'verify_message': self.verify_message,
+            'checksum': self.checksum
         }
 
 
