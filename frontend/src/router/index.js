@@ -34,6 +34,7 @@ import Topology from '@/views/assets/Topology.vue'
 import Performance from '@/views/monitor/Performance.vue'
 import SlowQueries from '@/views/sql/SlowQueries.vue'
 import Diagnosis from '@/views/ops/Diagnosis.vue'
+import Prediction from '@/views/ops/Prediction.vue'
 
 const routes = [
   {
@@ -208,6 +209,11 @@ const routes = [
   {
     path: '/ops/diagnosis',
     component: Diagnosis,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ops/prediction',
+    component: Prediction,
     meta: { requiresAuth: true }
   }
 ]

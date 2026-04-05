@@ -52,6 +52,7 @@
           <el-menu-item index="/servers/batch-ops">批量运维</el-menu-item>
           <el-menu-item index="/servers/batch-inspection">批量巡检</el-menu-item>
           <el-menu-item index="/ops/diagnosis">智能诊断</el-menu-item>
+          <el-menu-item index="/ops/prediction">预测性维护</el-menu-item>
           <el-menu-item index="/servers/knowledge">知识库</el-menu-item>
         </el-sub-menu>
 

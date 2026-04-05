@@ -466,6 +466,36 @@ class MetricHistory(db.Model):
         }
 
 
+class Prediction(db.Model):
+    """预测数据模型"""
+    __tablename__ = 'predictions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    target_type = db.Column(db.String(20), nullable=False)  # host/database/middleware
+    target_id = db.Column(db.Integer, nullable=False)
+    metric_type = db.Column(db.String(30), nullable=False)  # disk/connections/capacity
+    predicted_value = db.Column(db.Float)  # 预测值
+    predicted_at = db.Column(db.DateTime)  # 预测时间
+    threshold_value = db.Column(db.Float)  # 阈值
+    threshold_day = db.Column(db.Integer)  # 预计到达阈值的天数
+    confidence = db.Column(db.Float)  # 置信度
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'target_type': self.target_type,
+            'target_id': self.target_id,
+            'metric_type': self.metric_type,
+            'predicted_value': self.predicted_value,
+            'predicted_at': self.predicted_at.isoformat() if self.predicted_at else None,
+            'threshold_value': self.threshold_value,
+            'threshold_day': self.threshold_day,
+            'confidence': self.confidence,
+            'created_at': self.created_at.isoformat()
+        }
+
+
 class KnowledgeScope(enum.Enum):
     SERVER = "server"
     MIDDLEWARE = "middleware"

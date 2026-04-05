@@ -150,6 +150,7 @@ def create_app(config_class=Config):
         app.register_blueprint(metrics_bp, url_prefix='/api')
         app.register_blueprint(slowsql_bp, url_prefix='/api')
         app.register_blueprint(diagnosis_bp, url_prefix='/api')
+        app.register_blueprint(prediction_bp, url_prefix='/api')
 
     from db_ai_ops.xxl_job.bp import xxl_job_bp
     app.register_blueprint(xxl_job_bp, url_prefix='/xxl-job')

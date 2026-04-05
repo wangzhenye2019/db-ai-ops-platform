@@ -246,11 +246,23 @@ export const slowsqlAPI = {
 }
 
 export const diagnosisAPI = {
-  getRules: () => api.get('/diagnosis/rules'),
+  getRules: () => api.get('/prediction/targets'),
   getTargets: (type) => {
     const params = type ? `?type=${type}` : ''
     return api.get(`/diagnosis/targets${params}`)
   },
   runDiagnosis: (data) => api.post('/diagnosis', data),
   getHistory: () => api.get('/diagnosis/history')
+}
+
+export const predictionAPI = {
+  getTargets: (type) => {
+    const params = type ? `?type=${type}` : ''
+    return api.get(`/prediction/targets${params}`)
+  },
+  getMetrics: () => api.get('/prediction/metrics'),
+  getPredictions: (params) => api.get('/prediction', { params }),
+  runPrediction: (data) => api.post('/prediction', data),
+  batchPrediction: (metricType) => api.post('/prediction/batch', { metric_type: metricType }),
+  deletePrediction: (id) => api.delete(`/prediction/${id}`)
 }
