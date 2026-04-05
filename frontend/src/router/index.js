@@ -33,6 +33,7 @@ import SystemUsers from '@/views/system/Users.vue'
 import Topology from '@/views/assets/Topology.vue'
 import Performance from '@/views/monitor/Performance.vue'
 import SlowQueries from '@/views/sql/SlowQueries.vue'
+import Diagnosis from '@/views/ops/Diagnosis.vue'
 
 const routes = [
   {
@@ -202,6 +203,11 @@ const routes = [
   {
     path: '/sql/slow-queries',
     component: SlowQueries,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ops/diagnosis',
+    component: Diagnosis,
     meta: { requiresAuth: true }
   }
 ]

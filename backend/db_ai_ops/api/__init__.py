@@ -22,6 +22,7 @@ from .sql_bp import sql_bp
 from .topology_bp import topology_bp
 from .metrics_bp import metrics_bp
 from .slowsql_bp import slowsql_bp
+from .diagnosis_bp import diagnosis_bp
 
 __all__ = [
     'backup_bp',
@@ -47,5 +48,6 @@ __all__ = [
     'sql_bp',
     'topology_bp',
     'metrics_bp',
-    'slowsql_bp'
+    'slowsql_bp',
+    'diagnosis_bp'
 ]

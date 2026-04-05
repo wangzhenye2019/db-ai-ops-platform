@@ -244,3 +244,13 @@ export const slowsqlAPI = {
   getStats: (params) => api.get('/slowsql/stats', { params }),
   deleteQuery: (id) => api.delete(`/slowsql/queries/${id}`)
 }
+
+export const diagnosisAPI = {
+  getRules: () => api.get('/diagnosis/rules'),
+  getTargets: (type) => {
+    const params = type ? `?type=${type}` : ''
+    return api.get(`/diagnosis/targets${params}`)
+  },
+  runDiagnosis: (data) => api.post('/diagnosis', data),
+  getHistory: () => api.get('/diagnosis/history')
+}
