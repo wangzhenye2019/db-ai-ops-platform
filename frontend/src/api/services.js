@@ -106,8 +106,13 @@ export const opsAPI = {
 
 export const inspectionAPI = {
   run: (data) => api.post('/inspection/run', data),
-  listReports: () => api.get('/inspection/reports'),
-  getReport: (id) => api.get(`/inspection/reports/${id}`)
+  listReports: (params) => api.get('/inspection/reports', { params }),
+  getReport: (id) => api.get(`/inspection/reports/${id}`),
+  exportReport: (id, format) => {
+    const fmt = format || 'json'
+    return api.get(`/inspection/reports/${id}/export?format=${fmt}`, { responseType: 'blob' })
+  },
+  deleteReport: (id) => api.delete(`/inspection/reports/${id}`)
 }
 
 export const auditAPI = {
@@ -210,4 +215,32 @@ export const rbacAPI = {
 
   // Init
   init: () => api.post('/rbac/init')
+}
+
+export const topologyAPI = {
+  getTopology: (systemId) => {
+    const params = systemId ? `?system_id=${systemId}` : ''
+    return api.get(`/topology${params}`)
+  },
+  getNodeDetail: (nodeType, nodeId) => api.get(`/topology/node/${nodeType}/${nodeId}`)
+}
+
+export const metricsAPI = {
+  getTypes: () => api.get('/metrics/types'),
+  getTargets: (type) => {
+    const params = type ? `?type=${type}` : ''
+    return api.get(`/metrics/targets${params}`)
+  },
+  getMetrics: (params) => api.get('/metrics', { params }),
+  getLatest: (params) => api.get('/metrics/latest', { params }),
+  record: (data) => api.post('/metrics', data)
+}
+
+export const slowsqlAPI = {
+  listQueries: (params) => api.get('/slowsql/queries', { params }),
+  getQuery: (id) => api.get(`/slowsql/queries/${id}`),
+  recordQuery: (data) => api.post('/slowsql/queries', data),
+  analyzeQuery: (id) => api.post(`/slowsql/queries/${id}/analyze`),
+  getStats: (params) => api.get('/slowsql/stats', { params }),
+  deleteQuery: (id) => api.delete(`/slowsql/queries/${id}`)
 }

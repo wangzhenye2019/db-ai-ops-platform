@@ -30,6 +30,9 @@ import About from '@/views/About.vue'
 import Agent from '@/views/Agent.vue'
 import SystemRoles from '@/views/system/Roles.vue'
 import SystemUsers from '@/views/system/Users.vue'
+import Topology from '@/views/assets/Topology.vue'
+import Performance from '@/views/monitor/Performance.vue'
+import SlowQueries from '@/views/sql/SlowQueries.vue'
 
 const routes = [
   {
@@ -184,6 +187,21 @@ const routes = [
   {
     path: '/system/users',
     component: SystemUsers,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/assets/topology',
+    component: Topology,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/monitor/performance',
+    component: Performance,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/sql/slow-queries',
+    component: SlowQueries,
     meta: { requiresAuth: true }
   }
 ]

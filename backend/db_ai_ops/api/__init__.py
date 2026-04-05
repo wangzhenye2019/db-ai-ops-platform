@@ -19,6 +19,9 @@ from .agent_bp import agent_bp
 from .rbac_bp import rbac_bp
 from .alert_bp import alert_bp
 from .sql_bp import sql_bp
+from .topology_bp import topology_bp
+from .metrics_bp import metrics_bp
+from .slowsql_bp import slowsql_bp
 
 __all__ = [
     'backup_bp',
@@ -41,5 +44,8 @@ __all__ = [
     'agent_bp',
     'rbac_bp',
     'alert_bp',
-    'sql_bp'
+    'sql_bp',
+    'topology_bp',
+    'metrics_bp',
+    'slowsql_bp'
 ]

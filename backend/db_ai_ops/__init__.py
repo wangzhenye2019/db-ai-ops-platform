@@ -121,7 +121,8 @@ def create_app(config_class=Config):
             agent_bp,
             rbac_bp,
             alert_bp,
-            sql_bp
+            sql_bp,
+            topology_bp
         )
 
         app.register_blueprint(backup_bp, url_prefix='/api')
@@ -145,6 +146,9 @@ def create_app(config_class=Config):
         app.register_blueprint(rbac_bp, url_prefix='/api')
         app.register_blueprint(alert_bp, url_prefix='/api')
         app.register_blueprint(sql_bp, url_prefix='/api')
+        app.register_blueprint(topology_bp, url_prefix='/api')
+        app.register_blueprint(metrics_bp, url_prefix='/api')
+        app.register_blueprint(slowsql_bp, url_prefix='/api')
 
     from db_ai_ops.xxl_job.bp import xxl_job_bp
     app.register_blueprint(xxl_job_bp, url_prefix='/xxl-job')

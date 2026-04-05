@@ -25,6 +25,7 @@
           <el-menu-item index="/assets/groups">资产分组</el-menu-item>
           <el-menu-item index="/assets/list">资产列表</el-menu-item>
           <el-menu-item index="/assets/ips">IP资产</el-menu-item>
+          <el-menu-item index="/assets/topology">拓扑图</el-menu-item>
           <el-menu-item index="/assets/idcs">机房区域</el-menu-item>
           <el-menu-item index="/assets/tags">标签体系</el-menu-item>
         </el-sub-menu>
@@ -36,6 +37,8 @@
           <el-menu-item index="/databases">数据库管理</el-menu-item>
           <el-menu-item index="/backups">备份记录</el-menu-item>
           <el-menu-item index="/schedules">定时任务</el-menu-item>
+          <el-menu-item index="/sql/slow-queries">慢SQL分析</el-menu-item>
+          <el-menu-item index="/sql/orders">SQL工单</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="/servers">
@@ -74,6 +77,16 @@
           </template>
           <el-menu-item index="/inspection/one-click">一键巡检</el-menu-item>
           <el-menu-item index="/inspection/reports">巡检报告</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="/monitor">
+          <template #title>
+            <el-icon><TrendCharts /></el-icon>
+            <span>监控</span>
+          </template>
+          <el-menu-item index="/monitor/performance">性能趋势</el-menu-item>
+          <el-menu-item index="/monitor/alert-rules">告警规则</el-menu-item>
+          <el-menu-item index="/monitor/alert-history">告警历史</el-menu-item>
         </el-sub-menu>
 
         <el-menu-item index="/about">

@@ -432,6 +432,40 @@ class Middleware(db.Model):
         }
 
 
+class MetricType(enum.Enum):
+    CPU = "cpu"
+    MEMORY = "memory"
+    DISK = "disk"
+    CONNECTIONS = "connections"
+    QPS = "qps"
+    TPS = "tps"
+    SLOW_QUERIES = "slow_queries"
+    THREADS = "threads"
+
+
+class MetricHistory(db.Model):
+    __tablename__ = 'metric_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    target_type = db.Column(db.String(20), nullable=False)  # host/database/middleware
+    target_id = db.Column(db.Integer, nullable=False)
+    metric_type = db.Column(db.String(30), nullable=False)
+    value = db.Column(db.Float, nullable=False)
+    unit = db.Column(db.String(20))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'target_type': self.target_type,
+            'target_id': self.target_id,
+            'metric_type': self.metric_type,
+            'value': self.value,
+            'unit': self.unit,
+            'timestamp': self.timestamp.isoformat()
+        }
+
+
 class KnowledgeScope(enum.Enum):
     SERVER = "server"
     MIDDLEWARE = "middleware"
@@ -556,6 +590,45 @@ class AuditLog(db.Model):
             'status_code': self.status_code,
             'ip': self.ip,
             'created_at': self.created_at.isoformat()
+        }
+
+
+class SlowQuery(db.Model):
+    """慢SQL记录"""
+    __tablename__ = 'slow_queries'
+
+    id = db.Column(db.Integer, primary_key=True)
+    database_id = db.Column(db.Integer, db.ForeignKey('databases.id'))
+    db_type = db.Column(db.String(20))  # mysql/postgresql/oracle/mssql
+    sql_text = db.Column(db.Text)
+    execute_time = db.Column(db.Float)  # seconds
+    rows_sent = db.Column(db.Integer)
+    rows_examined = db.Column(db.Integer)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user = db.Column(db.String(100))
+    client = db.Column(db.String(100))
+    digest = db.Column(db.String(64))  # SQL摘要
+    analysis = db.Column(db.JSON)  # 分析结果
+    suggestion = db.Column(db.Text)  # 优化建议
+
+    database = db.relationship('Database', lazy='joined')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'database_id': self.database_id,
+            'database_name': self.database.name if self.database else None,
+            'db_type': self.db_type,
+            'sql_text': self.sql_text,
+            'execute_time': self.execute_time,
+            'rows_sent': self.rows_sent,
+            'rows_examined': self.rows_examined,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'user': self.user,
+            'client': self.client,
+            'digest': self.digest,
+            'analysis': self.analysis or {},
+            'suggestion': self.suggestion
         }
 
 
