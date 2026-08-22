@@ -1,5 +1,27 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1787418186996,
+      "tag": "0000_talented_saracen",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1787418756814,
+      "tag": "0001_first_vargas",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787418852662,
+      "tag": "0002_lyrical_gwen_stacy",
+      "breakpoints": true
+    }
+  ]
 }

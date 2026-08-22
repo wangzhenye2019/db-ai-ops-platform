@@ -21,15 +21,19 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { Activity, Bot, Boxes, Cable, ClipboardList, Database, LayoutDashboard, LogOut, PanelLeft } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "运维总览", path: "/" },
+  { icon: Database, label: "数据库资产", path: "/assets" },
+  { icon: ClipboardList, label: "Runbook 中心", path: "/runbooks" },
+  { icon: Cable, label: "集成与执行节点", path: "/integrations" },
+  { icon: Bot, label: "智能处置", path: "/intelligence" },
+  { icon: Boxes, label: "能力矩阵", path: "/capabilities" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -58,14 +62,15 @@ export default function DashboardLayout({
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
+      <div className="blueprint-canvas flex items-center justify-center min-h-screen">
+        <div className="tech-card flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
+            <Activity className="h-8 w-8 text-cyan-200" />
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-center text-white">
+              进入数据库运维中心
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              此控制台仅向已授权的运维成员开放。登录后可访问资产、执行与审计信息。
             </p>
           </div>
           <Button
@@ -73,7 +78,7 @@ export default function DashboardLayout({
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
-            Sign in
+            安全登录
           </Button>
         </div>
       </div>
@@ -154,10 +159,10 @@ function DashboardLayoutContent({
       <div className="relative" ref={sidebarRef}>
         <Sidebar
           collapsible="icon"
-          className="border-r-0"
+          className="border-r border-blue-300/15 bg-[#051845]/95 text-blue-50"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center">
+          <SidebarHeader className="h-[76px] justify-center border-b border-blue-300/15">
             <div className="flex items-center gap-3 px-2 transition-all w-full">
               <button
                 onClick={toggleSidebar}
@@ -167,17 +172,16 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
-                  </span>
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-display text-sm font-semibold tracking-tight text-white truncate">DB CONTROL</span>
+                  <span className="font-mono text-[9px] tracking-[0.16em] text-cyan-200/65">OPS BLUEPRINT</span>
                 </div>
               ) : null}
             </div>
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
+            <SidebarMenu className="px-2 py-3">
               {menuItems.map(item => {
                 const isActive = location === item.path;
                 return (
@@ -186,10 +190,10 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className={`h-10 rounded-sm transition-all font-normal text-blue-100/70 hover:bg-blue-200/10 hover:text-white data-[active=true]:bg-cyan-200/12 data-[active=true]:text-white`}
                     >
                       <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                        className={`h-4 w-4 ${isActive ? "text-cyan-200" : ""}`}
                       />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -199,20 +203,20 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
+          <SidebarFooter className="border-t border-blue-300/15 p-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
+                  <Avatar className="h-9 w-9 border border-cyan-200/30 bg-cyan-200/10 shrink-0">
+                    <AvatarFallback className="bg-transparent text-xs font-medium text-cyan-100">
                       {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
+                    <p className="text-sm font-medium truncate leading-none text-white">
                       {user?.name || "-"}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
+                    <p className="mt-1.5 truncate text-xs text-blue-100/55">
                       {user?.email || "-"}
                     </p>
                   </div>
@@ -242,7 +246,7 @@ function DashboardLayoutContent({
 
       <SidebarInset>
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-blue-300/15 bg-[#061b51]/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <div className="flex items-center gap-3">
@@ -255,7 +259,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="blueprint-canvas min-h-screen flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
       </SidebarInset>
     </>
   );
