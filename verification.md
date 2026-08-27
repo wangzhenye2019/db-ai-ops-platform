@@ -81,3 +81,7 @@
 最新浏览器交互验收：已登录会话打开 `/servers`，侧栏“服务器资产”处于选中状态，页面显示真实空数据指标和治理表单；点击“登记服务器”后登记表单正常展开，展示资产名称、主机名、IP、操作系统、区域、负责人、密钥引用和能力标签字段。此次仅打开表单，未保存任何资产，未产生写操作或敏感凭据。
 
 补充交互验收：服务器登记表单可取消并返回真实空状态；在 SQL 审核文本框输入仅用于预览的 `DROP TABLE audit_probe_only` 后，页面即时显示“审核发现需处理项”，未点击创建工单，未写入数据库或触发生产执行。当前无真实服务器记录，故详情展开与探活按钮没有可供选择的目标；其服务端生命周期、节点绑定和回传接口已由 Vitest 覆盖。
+
+## GitHub 推送记录（2026-08-27）
+
+本次更新已安全推送至私有仓库 `wangzhenye2019/db-ai-ops-platform` 的功能分支 `manus/db-control-enhancement`，远程提交为 `ad6857b`（`chore: sync governance integration checklist`），并已通过 fetch 核对远程分支 HEAD 与本地 HEAD 一致、工作区干净。由于远程 `main` 与当前项目历史无共同祖先，直接推送 main 被 Git 拒绝；为避免覆盖远程已有 23 个提交，未使用强制推送，改用独立功能分支供后续 Pull Request 审阅合并。Pull Request 入口：<https://github.com/wangzhenye2019/db-ai-ops-platform/pull/new/manus/db-control-enhancement>。
