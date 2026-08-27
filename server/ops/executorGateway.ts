@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull, or } from "drizzle-orm";
 import type { Express, Request } from "express";
 import { controlledExecutorNodes, executionLogs, notificationEvents, runbookExecutions } from "../../drizzle/schema";
+import { recordServerProbeResult } from "./service";
 import { getDb } from "../db";
 import { notifyOwner } from "../_core/notification";
 import { LEASE_WINDOW_MS, createLeaseToken, hasMatchingSecret, hasValidLease } from "./executorSecurity";
@@ -60,6 +61,22 @@ export function registerExecutorGateway(app: Express) {
     const secret = getGatewaySecret();
     if (!secret) return res.status(503).json({ ok: false, error: "executor gateway secret unavailable" });
     return res.json({ ok: true, task: { executionKey: execution.executionKey, runbookTitle: execution.runbookTitle, templateKey: execution.templateKey, category: execution.category, riskLevel: execution.riskLevel, parameters: execution.input ?? {}, lease: { expiresAt, token: createLeaseToken(nodeKey, execution.executionKey, expiresAt, secret) } } });
+  });
+
+  app.post("/api/executor/server-probe-result", async (req, res) => {
+    if (rejectUnauthorized(req, res)) return;
+    const nodeKey = typeof req.body?.nodeKey === "string" ? req.body.nodeKey.trim() : "";
+    const serverAssetId = Number(req.body?.serverAssetId);
+    const status = req.body?.status;
+    const message = typeof req.body?.message === "string" ? req.body.message.slice(0, 4000) : "受控节点回传服务器探活结果。";
+    if (!nodeKey || !Number.isInteger(serverAssetId) || serverAssetId <= 0 || !["online", "degraded", "offline", "unknown"].includes(status)) return res.status(400).json({ ok: false, error: "nodeKey, serverAssetId and valid status required" });
+    const db = await getDb();
+    if (!db) return res.status(503).json({ ok: false, error: "operations database unavailable" });
+    const node = (await db.select().from(controlledExecutorNodes).where(eq(controlledExecutorNodes.nodeKey, nodeKey)).limit(1))[0];
+    if (!node) return res.status(404).json({ ok: false, error: "executor node not registered" });
+    if (node.serverAssetId !== serverAssetId) return res.status(403).json({ ok: false, error: "executor node is not assigned to this server asset" });
+    const result = await recordServerProbeResult(serverAssetId, status as "online" | "degraded" | "offline" | "unknown", message);
+    return res.json({ ok: true, ...result, nodeKey });
   });
 
   app.post("/api/executor/result", async (req, res) => {

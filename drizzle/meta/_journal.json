@@ -64,6 +64,20 @@
       "when": 1787833315539,
       "tag": "0008_first_adam_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1787837266226,
+      "tag": "0009_supreme_ezekiel",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1787837393749,
+      "tag": "0010_fantastic_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

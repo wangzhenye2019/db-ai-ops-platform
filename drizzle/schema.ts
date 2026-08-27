@@ -44,12 +44,15 @@ export const queryAuditStatusValues = ["pending", "approved", "rejected", "execu
 
 export const databaseInstances = mysqlTable("database_instances", {
   id: int("id").autoincrement().primaryKey(),
+  serverAssetId: int("serverAssetId").references(() => serverAssets.id),
   name: varchar("name", { length: 128 }).notNull(),
   engine: mysqlEnum("engine", databaseEngineValues).notNull(),
   host: varchar("host", { length: 255 }).notNull(),
   port: int("port").notNull(),
   databaseName: varchar("databaseName", { length: 128 }),
   version: varchar("version", { length: 80 }),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  metadataSyncedAt: timestamp("metadataSyncedAt"),
   environment: mysqlEnum("environment", environmentValues).notNull().default("production"),
   healthStatus: mysqlEnum("healthStatus", healthStatusValues).notNull().default("unknown"),
   healthScore: int("healthScore").notNull().default(0),
@@ -89,6 +92,7 @@ export const serverAssets = mysqlTable("server_assets", {
 
 export const controlledExecutorNodes = mysqlTable("controlled_executor_nodes", {
   id: int("id").autoincrement().primaryKey(),
+  serverAssetId: int("serverAssetId").references(() => serverAssets.id),
   nodeKey: varchar("nodeKey", { length: 64 }).notNull().unique(),
   name: varchar("name", { length: 128 }).notNull(),
   environment: mysqlEnum("environment", environmentValues).notNull().default("production"),

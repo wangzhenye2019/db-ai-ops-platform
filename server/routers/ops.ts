@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { databaseEngineValues, environmentValues, executionTriggerValues, healthStatusValues, integrationProviderValues, riskLevelValues, runbookCategoryValues } from "../../drizzle/schema";
-import { protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { adapterMatrix, builtInRunbooks } from "../ops/catalog";
 import * as ops from "../ops/service";
 
@@ -35,16 +35,18 @@ export const opsRouter = router({
   }),
   serverAssets: router({
     list: protectedProcedure.query(() => ops.listServerAssets()),
-    get: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(({ input }) => ops.getServerAsset(input.id)),
+    get: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(({ input }) => ops.getServerAssetContext(input.id)),
     create: protectedProcedure.input(serverAssetInputSchema).mutation(({ input, ctx }) => ops.createServerAsset({ ...input, createdBy: ctx.user.openId })),
     requestProbe: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input, ctx }) => ops.requestServerProbe(input.id, ctx.user.openId)),
+    syncDatabaseMetadata: protectedProcedure.input(z.object({ instanceId: z.number().int().positive(), version: z.string().max(80).optional(), metadata: jsonRecord })).mutation(({ input }) => ops.syncDatabaseMetadata(input)),
   }),
   governance: router({
     reviewSql: protectedProcedure.input(z.object({ sqlText: z.string().max(100000) })).query(({ input }) => ops.reviewSqlText(input.sqlText)),
     changeRequests: protectedProcedure.query(() => ops.listChangeRequests()),
     createChangeRequest: protectedProcedure.input(changeRequestInputSchema).mutation(({ input, ctx }) => ops.createChangeRequest({ ...input, requestedBy: ctx.user.openId })),
+    approveChangeRequest: adminProcedure.input(z.object({ requestKey: z.string().min(8).max(64) })).mutation(({ input, ctx }) => ops.approveChangeRequest(input.requestKey, ctx.user.openId)),
     sqlReviewPolicies: protectedProcedure.query(() => ops.listSqlReviewPolicies()),
-    createSqlReviewPolicy: protectedProcedure.input(sqlReviewPolicyInputSchema).mutation(({ input, ctx }) => ops.createSqlReviewPolicy({ ...input, createdBy: ctx.user.openId })),
+    createSqlReviewPolicy: adminProcedure.input(sqlReviewPolicyInputSchema).mutation(({ input, ctx }) => ops.createSqlReviewPolicy({ ...input, createdBy: ctx.user.openId })),
     queryAuditRecords: protectedProcedure.query(() => ops.listQueryAuditRecords()),
     createQueryAuditRecord: protectedProcedure.input(queryAuditInputSchema).mutation(({ input, ctx }) => ops.createQueryAuditRecord({ ...input, requestedBy: ctx.user.openId })),
   }),

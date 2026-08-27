@@ -1,0 +1,4 @@
+ALTER TABLE `controlled_executor_nodes` ADD `serverAssetId` int;--> statement-breakpoint
+ALTER TABLE `database_instances` ADD `serverAssetId` int;--> statement-breakpoint
+ALTER TABLE `controlled_executor_nodes` ADD CONSTRAINT `controlled_executor_nodes_serverAssetId_server_assets_id_fk` FOREIGN KEY (`serverAssetId`) REFERENCES `server_assets`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `database_instances` ADD CONSTRAINT `database_instances_serverAssetId_server_assets_id_fk` FOREIGN KEY (`serverAssetId`) REFERENCES `server_assets`(`id`) ON DELETE no action ON UPDATE no action;

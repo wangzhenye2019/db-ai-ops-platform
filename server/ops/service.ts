@@ -89,6 +89,26 @@ export async function getServerAsset(id: number) {
   return (await db.select().from(serverAssets).where(eq(serverAssets.id, id)).limit(1))[0] ?? null;
 }
 
+export async function getServerAssetContext(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  const asset = await getServerAsset(id);
+  if (!asset) return null;
+  const [instances, nodes] = await Promise.all([
+    db.select().from(databaseInstances).where(eq(databaseInstances.serverAssetId, id)),
+    db.select().from(controlledExecutorNodes).where(eq(controlledExecutorNodes.serverAssetId, id)),
+  ]);
+  return { asset, instances, nodes };
+}
+
+export async function syncDatabaseMetadata(input: { instanceId: number; version?: string; metadata: Record<string, unknown> }) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  const syncedAt = new Date();
+  await db.update(databaseInstances).set({ version: input.version, metadata: input.metadata, metadataSyncedAt: syncedAt }).where(eq(databaseInstances.id, input.instanceId));
+  return { instanceId: input.instanceId, syncedAt, metadata: input.metadata };
+}
+
 export async function requestServerProbe(id: number, requestedBy: string) {
   const db = await getDb();
   if (!db) throw new Error("运维数据服务不可用");
@@ -141,6 +161,16 @@ export async function createChangeRequest(input: { title: string; engine: string
 export async function listChangeRequests() {
   const db = await getDb();
   return db ? db.select().from(changeRequests).orderBy(desc(changeRequests.updatedAt)).limit(30) : [];
+}
+
+export async function approveChangeRequest(requestKey: string, approver: string) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  const request = (await db.select().from(changeRequests).where(eq(changeRequests.requestKey, requestKey)).limit(1))[0];
+  if (!request) throw new Error("未找到变更工单");
+  if (request.status !== "pending_review") throw new Error("当前工单不在待审核状态");
+  await db.update(changeRequests).set({ status: "approved", approver, approvedAt: new Date() }).where(eq(changeRequests.id, request.id));
+  return { requestKey, status: "approved" as const, approver };
 }
 
 export async function listQueryAuditRecords() {
