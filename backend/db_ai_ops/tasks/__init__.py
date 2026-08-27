@@ -4,7 +4,9 @@ from .backup_tasks import (
     backup_postgres,
     backup_oracle,
     backup_mssql,
-    cleanup_old_backups
+    cleanup_old_backups,
+    verify_backup,
+    restore_database
 )
 
 __all__ = [
@@ -13,5 +15,7 @@ __all__ = [
     'backup_postgres',
     'backup_oracle',
     'backup_mssql',
-    'cleanup_old_backups'
+    'cleanup_old_backups',
+    'verify_backup',
+    'restore_database'
 ]

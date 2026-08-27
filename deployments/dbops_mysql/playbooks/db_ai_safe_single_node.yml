@@ -1,0 +1,36 @@
+---
+# db-ai-ops-platform safety wrapper for upstream dbops roles.
+# The upstream pre_check_and_set role changes host security baselines (SELinux,
+# firewalld and kernel settings), so it is deliberately not included here.
+- name: Deploy single-node MySQL through DB-AI Ops
+  hosts: dbops_mysql
+  become: true
+  any_errors_fatal: true
+  gather_facts: true
+  vars_files:
+    - common_config.yml
+    - advanced_config.yml
+  pre_tasks:
+    - name: Detect supported operating system and Python interpreter
+      ansible.builtin.import_tasks: pre_tasks/check_os_and_python.yml
+
+    - name: Derive capacity values from target facts when server_specs is automatic
+      ansible.builtin.set_fact:
+        server_specs_processor_count: "{{ ansible_processor_vcpus | default(ansible_processor_count) | int }}"
+        server_specs_memtotal_gb: "{{ ((ansible_memtotal_mb | int) / 1024) | round(0, 'ceil') | int }}"
+      when: server_specs == 'auto'
+
+    - name: Derive capacity values from explicit server_specs
+      ansible.builtin.set_fact:
+        server_specs_processor_count: "{{ server_specs.split('c')[0] | int }}"
+        server_specs_memtotal_gb: "{{ (server_specs.split('c')[1]).rstrip('g') | int }}"
+      when: server_specs != 'auto'
+
+    - name: Create a unique MySQL server identifier
+      ansible.builtin.set_fact:
+        mysql_server_id: "{{ 4294967295 | random(1) }}"
+
+  tasks:
+    - name: Install and initialize MySQL
+      ansible.builtin.include_role:
+        name: ../roles/mysql_server

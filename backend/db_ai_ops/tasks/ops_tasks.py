@@ -129,6 +129,23 @@ def run_operation_task(task_id):
                 'items': items
             }
             t.status = OperationTaskStatus.SUCCESS if ok > 0 and failed == 0 else (OperationTaskStatus.FAILED if ok == 0 else OperationTaskStatus.SUCCESS)
+        elif t.category == 'database' and t.action == 'mysql-deploy':
+            from db_ai_ops.deployment.mysql_runner import run_mysql_deployment
+
+            deployment_result = run_mysql_deployment(payload)
+            exit_code = int(deployment_result.get('exit_code', 1))
+            t.result = {
+                'message': 'MySQL 部署预演完成' if deployment_result.get('mode') == 'dry-run' else 'MySQL 部署执行完成',
+                'action': t.action,
+                'mode': deployment_result.get('mode'),
+                'preview': deployment_result.get('preview') or {},
+                'exit_code': exit_code,
+                'stdout': _truncate(deployment_result.get('stdout')),
+                'stderr': _truncate(deployment_result.get('stderr'))
+            }
+            t.status = OperationTaskStatus.SUCCESS if exit_code == 0 else OperationTaskStatus.FAILED
+            if exit_code != 0:
+                t.error_message = 'Ansible 部署失败，请查看已脱敏的任务输出。'
         else:
             t.result = {
                 'message': '任务已执行（演示模式）',

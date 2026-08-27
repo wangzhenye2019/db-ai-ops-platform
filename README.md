@@ -13,6 +13,7 @@
 - 🔄 **异步任务**：基于 Celery 的后台任务执行框架
 - ⏰ **定时任务**：Cron 表达式驱动的任务编排（能力逐步补齐）
 - 📥 **批量导入**：数据库 / 主机 / 中间件支持 CSV / XLSX / TXT 导入，并提供模板下载
+- 🛠️ **MySQL 自动化部署**：集成 [dbops](https://gitee.com/fanderchan/dbops) 的 Ansible 资产，支持单节点、一主多从和 MGR 拓扑，并提供部署预演、异步执行与脱敏日志。
 
 ## 🏗️ 技术栈
 
@@ -59,6 +60,10 @@ db-ai-ops-platform/
 │   ├── vite.config.js
 │   └── Dockerfile
 ├── backups/                # 备份文件存储目录
+├── deployments/            # 受控数据库部署资产与运行说明
+│   ├── dbops_mysql/        # dbops 上游 MySQL Ansible 资产（安全裁剪）
+│   └── README.md           # 部署安全边界、主机指纹与凭据约定
+├── THIRD_PARTY_NOTICES.md  # 上游许可证与集成说明
 ├── docker-compose.yml      # Docker Compose 配置
 ├── .env.example           # 环境变量示例
 └── README.md              # 本文件
@@ -176,7 +181,13 @@ npm run dev
 4. 点击"测试连接"验证配置
 5. 保存配置
 
-### 2. 创建备份
+### 2. 自动化部署 MySQL
+
+进入“数据库 > MySQL 自动化部署”，选择已登记的 Linux 主机和初始化凭据，按实际需求选择单节点、一主多从或 MGR 拓扑。系统会先校验主机数量、版本、端口、目录和凭据引用；勾选“仅预演”可验证参数与资产而不连接任何服务器。真实执行前必须在页面明确确认，且部署控制器必须预置目标服务器的 SSH 主机指纹。
+
+部署过程由 Celery 异步执行。平台不会把 SSH 或 MySQL 密码写入任务参数、数据库任务结果或日志；执行结果中的输出会自动脱敏。详细的 `known_hosts` 配置、环境变量和凭据格式见 [deployments/README.md](deployments/README.md)。
+
+### 3. 创建备份
 
 1. 进入"备份记录"页面
 2. 点击"创建备份"
@@ -184,7 +195,7 @@ npm run dev
 4. 点击"开始备份"
 5. 在列表中查看备份进度和结果
 
-### 3. 设置定时备份
+### 4. 设置定时备份
 
 1. 进入"定时任务"页面
 2. 点击"添加定时任务"
@@ -207,7 +218,7 @@ npm run dev
 | 月份 | 1-12 | 一年中的第几个月 |
 | 星期 | 0-6 | 一周中的第几天 (0=周日) |
 
-### 4. 查看统计
+### 5. 查看统计
 
 在"概览"页面可以查看：
 - 数据库总数
@@ -294,6 +305,14 @@ npm run dev
 - `PUT /api/databases/:id` - 更新数据库配置
 - `DELETE /api/databases/:id` - 删除数据库
 - `POST /api/databases/:id/test` - 测试连接
+
+### MySQL 部署 API
+
+- `GET /api/ops/deployments/mysql/options` - 获取支持的拓扑、版本与安全约束
+- `POST /api/ops/tasks` - 以 `category=database`、`action=mysql-deploy` 创建管理员部署任务
+- `GET /api/ops/tasks/:id` - 查询部署预演或执行结果
+
+部署载荷必须引用 `initial_credential_id`，不得包含明文密码，并需要 `confirmed=true`。支持 `dry_run=true` 进行不连接主机的预演。真实部署会强制 SSH 主机指纹校验，且安全包装剧本不会自动关闭 SELinux、防火墙或修改内核基线。
 
 ### 定时任务 API
 

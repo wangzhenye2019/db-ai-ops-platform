@@ -1,0 +1,3 @@
+server_specs_processor_count: "{{ ansible_processor_count }}"
+server_specs_memtotal_mb: "{{ ansible_memtotal_mb }}"
+server_specs_memtotal_gb: "{{ ansible_memtotal_mb |int // 1024 }}"

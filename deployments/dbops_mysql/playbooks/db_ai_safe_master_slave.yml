@@ -1,0 +1,40 @@
+---
+# DB-AI Ops safety wrapper. It intentionally omits upstream host-hardening tasks.
+- name: Deploy MySQL primary-replica topology through DB-AI Ops
+  hosts: dbops_mysql
+  become: true
+  any_errors_fatal: true
+  max_fail_percentage: 1
+  gather_facts: true
+  vars_files:
+    - common_config.yml
+    - advanced_config.yml
+    - vars/var_master_slave.yml
+  pre_tasks:
+    - name: Detect supported operating system and Python interpreter
+      ansible.builtin.import_tasks: pre_tasks/check_os_and_python.yml
+
+    - name: Derive capacity values from target facts when server_specs is automatic
+      ansible.builtin.set_fact:
+        server_specs_processor_count: "{{ ansible_processor_vcpus | default(ansible_processor_count) | int }}"
+        server_specs_memtotal_gb: "{{ ((ansible_memtotal_mb | int) / 1024) | round(0, 'ceil') | int }}"
+      when: server_specs == 'auto'
+
+    - name: Derive capacity values from explicit server_specs
+      ansible.builtin.set_fact:
+        server_specs_processor_count: "{{ server_specs.split('c')[0] | int }}"
+        server_specs_memtotal_gb: "{{ (server_specs.split('c')[1]).rstrip('g') | int }}"
+      when: server_specs != 'auto'
+
+    - name: Create a unique MySQL server identifier
+      ansible.builtin.set_fact:
+        mysql_server_id: "{{ 4294967295 | random(1) }}"
+
+  tasks:
+    - name: Install and initialize MySQL on all topology nodes
+      ansible.builtin.include_role:
+        name: ../roles/mysql_server
+
+    - name: Configure primary-replica replication
+      ansible.builtin.include_role:
+        name: ../roles/make_replication

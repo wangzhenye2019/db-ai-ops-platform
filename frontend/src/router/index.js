@@ -35,6 +35,7 @@ import Performance from '@/views/monitor/Performance.vue'
 import SlowQueries from '@/views/sql/SlowQueries.vue'
 import Diagnosis from '@/views/ops/Diagnosis.vue'
 import Prediction from '@/views/ops/Prediction.vue'
+import MySQLDeployment from '@/views/deployments/MySQL.vue'
 
 const routes = [
   {
@@ -99,6 +100,11 @@ const routes = [
   {
     path: '/backups',
     component: Backups,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/deployments/mysql',
+    component: MySQLDeployment,
     meta: { requiresAuth: true }
   },
   {

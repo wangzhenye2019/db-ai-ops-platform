@@ -104,6 +104,15 @@ export const opsAPI = {
   getTask: (id) => api.get(`/ops/tasks/${id}`)
 }
 
+export const deploymentAPI = {
+  mysqlOptions: () => api.get('/ops/deployments/mysql/options'),
+  createMysqlDeployment: (payload) => api.post('/ops/tasks', {
+    category: 'database',
+    action: 'mysql-deploy',
+    payload
+  })
+}
+
 export const inspectionAPI = {
   run: (data) => api.post('/inspection/run', data),
   listReports: (params) => api.get('/inspection/reports', { params }),

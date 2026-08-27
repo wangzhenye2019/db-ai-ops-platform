@@ -902,3 +902,264 @@ class XxlJobTrigger(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     started_at = db.Column(db.DateTime)
     finished_at = db.Column(db.DateTime)
+
+
+class AlertLevel(enum.Enum):
+    P0 = 'p0'
+    P1 = 'p1'
+    P2 = 'p2'
+    P3 = 'p3'
+
+
+class AlertStatus(enum.Enum):
+    ACTIVE = 'active'
+    ACKED = 'acked'
+    RESOLVED = 'resolved'
+
+
+class AlertRule(db.Model):
+    __tablename__ = 'alert_rules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False)
+    enabled = db.Column(db.Boolean, default=True, nullable=False)
+    target_type = db.Column(db.String(32), nullable=False)
+    target_id = db.Column(db.Integer)
+    metric = db.Column(db.String(64), nullable=False)
+    aggregator = db.Column(db.String(16), default='avg', nullable=False)
+    period_seconds = db.Column(db.Integer, default=300, nullable=False)
+    operator = db.Column(db.String(4), nullable=False)
+    threshold = db.Column(db.Float, nullable=False)
+    consecutive_count = db.Column(db.Integer, default=1, nullable=False)
+    level = db.Column(db.Enum(AlertLevel), default=AlertLevel.P2, nullable=False)
+    channel_ids = db.Column(db.JSON)
+    notify_on_resolve = db.Column(db.Boolean, default=True, nullable=False)
+    suppression_duration = db.Column(db.Integer, default=300, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    last_triggered_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    creator = db.relationship('User', lazy='joined')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'enabled': self.enabled,
+            'target_type': self.target_type,
+            'target_id': self.target_id,
+            'metric': self.metric,
+            'aggregator': self.aggregator,
+            'period_seconds': self.period_seconds,
+            'operator': self.operator,
+            'threshold': self.threshold,
+            'consecutive_count': self.consecutive_count,
+            'level': self.level.value if self.level else None,
+            'channel_ids': self.channel_ids or [],
+            'notify_on_resolve': self.notify_on_resolve,
+            'suppression_duration': self.suppression_duration,
+            'created_by': self.created_by,
+            'last_triggered_at': self.last_triggered_at.isoformat() if self.last_triggered_at else None,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+
+class AlertChannel(db.Model):
+    __tablename__ = 'alert_channels'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    channel_type = db.Column(db.String(32), nullable=False)
+    enabled = db.Column(db.Boolean, default=True, nullable=False)
+    config = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @staticmethod
+    def _safe_config(value):
+        sensitive_keys = {'secret', 'token', 'password', 'webhook', 'url', 'smtp_password'}
+        if not isinstance(value, dict):
+            return value or {}
+        return {
+            key: ('***REDACTED***' if key.lower() in sensitive_keys and item else item)
+            for key, item in value.items()
+        }
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'channel_type': self.channel_type,
+            'enabled': self.enabled,
+            'config': self._safe_config(self.config),
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+    def to_dict_with_secret(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'channel_type': self.channel_type,
+            'enabled': self.enabled,
+            'config': self.config or {},
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+
+class AlertHistory(db.Model):
+    __tablename__ = 'alert_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    rule_id = db.Column(db.Integer, db.ForeignKey('alert_rules.id'))
+    rule_name = db.Column(db.String(160), nullable=False)
+    alert_name = db.Column(db.String(200), nullable=False)
+    level = db.Column(db.Enum(AlertLevel), nullable=False)
+    status = db.Column(db.Enum(AlertStatus), default=AlertStatus.ACTIVE, nullable=False)
+    target_type = db.Column(db.String(32), nullable=False)
+    target_id = db.Column(db.Integer)
+    target_name = db.Column(db.String(160))
+    metric = db.Column(db.String(64))
+    metric_value = db.Column(db.Float)
+    threshold = db.Column(db.Float)
+    operator = db.Column(db.String(4))
+    message = db.Column(db.Text)
+    triggered_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    acked_at = db.Column(db.DateTime)
+    acked_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    ack_comment = db.Column(db.Text)
+    resolved_at = db.Column(db.DateTime)
+    resolved_reason = db.Column(db.Text)
+    notifications_sent = db.Column(db.JSON)
+
+    rule = db.relationship('AlertRule', lazy='joined')
+    acker = db.relationship('User', foreign_keys=[acked_by], lazy='joined')
+
+    def _get_duration(self):
+        end_time = self.resolved_at or datetime.utcnow()
+        return max(0, int((end_time - self.triggered_at).total_seconds()))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'rule_id': self.rule_id,
+            'rule_name': self.rule_name,
+            'alert_name': self.alert_name,
+            'level': self.level.value if self.level else None,
+            'status': self.status.value if self.status else None,
+            'target_type': self.target_type,
+            'target_id': self.target_id,
+            'target_name': self.target_name,
+            'metric': self.metric,
+            'metric_value': self.metric_value,
+            'threshold': self.threshold,
+            'operator': self.operator,
+            'message': self.message,
+            'triggered_at': self.triggered_at.isoformat(),
+            'acked_at': self.acked_at.isoformat() if self.acked_at else None,
+            'acked_by': self.acked_by,
+            'ack_comment': self.ack_comment,
+            'resolved_at': self.resolved_at.isoformat() if self.resolved_at else None,
+            'resolved_reason': self.resolved_reason,
+            'notifications_sent': self.notifications_sent or [],
+            'duration_seconds': self._get_duration()
+        }
+
+
+class SqlOrderStatus(enum.Enum):
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+    EXECUTING = 'executing'
+    EXECUTED = 'executed'
+    FAILED = 'failed'
+    ROLLED_BACK = 'rolled_back'
+
+
+class SqlOrder(db.Model):
+    __tablename__ = 'sql_orders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    database_id = db.Column(db.Integer, db.ForeignKey('databases.id'), nullable=False)
+    sql_content = db.Column(db.Text, nullable=False)
+    sql_type = db.Column(db.String(24), nullable=False)
+    status = db.Column(db.Enum(SqlOrderStatus), default=SqlOrderStatus.PENDING, nullable=False)
+    creator_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    reviewer_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    executor_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    review_comment = db.Column(db.Text)
+    reviewed_at = db.Column(db.DateTime)
+    executed_at = db.Column(db.DateTime)
+    execution_time = db.Column(db.Float)
+    affected_rows = db.Column(db.Integer)
+    rollback_sql = db.Column(db.Text)
+    rolled_back_at = db.Column(db.DateTime)
+    error_message = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    database = db.relationship('Database', lazy='joined')
+    creator = db.relationship('User', foreign_keys=[creator_id], lazy='joined')
+    reviewer = db.relationship('User', foreign_keys=[reviewer_id], lazy='joined')
+    executor = db.relationship('User', foreign_keys=[executor_id], lazy='joined')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'database_id': self.database_id,
+            'database_name': self.database.name if self.database else None,
+            'sql_content': self.sql_content,
+            'sql_type': self.sql_type,
+            'status': self.status.value if self.status else None,
+            'creator_id': self.creator_id,
+            'reviewer_id': self.reviewer_id,
+            'executor_id': self.executor_id,
+            'review_comment': self.review_comment,
+            'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
+            'executed_at': self.executed_at.isoformat() if self.executed_at else None,
+            'execution_time': self.execution_time,
+            'affected_rows': self.affected_rows,
+            'rollback_sql': self.rollback_sql,
+            'rolled_back_at': self.rolled_back_at.isoformat() if self.rolled_back_at else None,
+            'error_message': self.error_message,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+
+class SqlAuditRule(db.Model):
+    __tablename__ = 'sql_audit_rules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False)
+    enabled = db.Column(db.Boolean, default=True, nullable=False)
+    rule_type = db.Column(db.String(32), nullable=False)
+    pattern = db.Column(db.String(500))
+    keywords = db.Column(db.String(500))
+    severity = db.Column(db.String(16), default='warning', nullable=False)
+    message = db.Column(db.Text)
+    suggestion = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'enabled': self.enabled,
+            'rule_type': self.rule_type,
+            'pattern': self.pattern,
+            'keywords': self.keywords,
+            'severity': self.severity,
+            'message': self.message,
+            'suggestion': self.suggestion,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }

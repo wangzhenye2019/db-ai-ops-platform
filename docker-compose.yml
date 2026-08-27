@@ -19,11 +19,14 @@ services:
     volumes:
       - ./backend:/app
       - ./backups:/app/backups
+      - ./deployments:/app/deployments:ro
     environment:
       - FLASK_ENV=production
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
       - DATABASE_URI=sqlite:///backups.db
+      - DEPLOYMENT_DBOPS_ROOT=/app/deployments/dbops_mysql
+      - DEPLOYMENT_KNOWN_HOSTS_PATH=/app/deployments/known_hosts/known_hosts
     depends_on:
       - redis
     command: python run.py
@@ -35,9 +38,12 @@ services:
     volumes:
       - ./backend:/app
       - ./backups:/app/backups
+      - ./deployments:/app/deployments:ro
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
+      - DEPLOYMENT_DBOPS_ROOT=/app/deployments/dbops_mysql
+      - DEPLOYMENT_KNOWN_HOSTS_PATH=/app/deployments/known_hosts/known_hosts
     depends_on:
       - redis
     command: celery -A db_ai_ops.celery_app:celery worker --loglevel=info

@@ -35,6 +35,7 @@
             <span>数据库</span>
           </template>
           <el-menu-item index="/databases">数据库管理</el-menu-item>
+          <el-menu-item index="/deployments/mysql">MySQL 自动化部署</el-menu-item>
           <el-menu-item index="/backups">备份记录</el-menu-item>
           <el-menu-item index="/schedules">定时任务</el-menu-item>
           <el-menu-item index="/sql/slow-queries">慢SQL分析</el-menu-item>

@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, g
 from datetime import datetime
 import re
 import time
-from ..models import db, SqlOrder, SqlAuditRule, Database, Backup, BackupStatus
+from ..models import db, SqlOrder, SqlOrderStatus, SqlAuditRule, Database, Backup, BackupStatus
 from ..tasks.sql_execute import execute_sql_order_task
 
 sql_bp = Blueprint('sql', __name__, url_prefix='/sql')

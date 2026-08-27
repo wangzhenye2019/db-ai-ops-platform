@@ -122,7 +122,11 @@ def create_app(config_class=Config):
             rbac_bp,
             alert_bp,
             sql_bp,
-            topology_bp
+            topology_bp,
+            metrics_bp,
+            slowsql_bp,
+            diagnosis_bp,
+            prediction_bp
         )
 
         app.register_blueprint(backup_bp, url_prefix='/api')
