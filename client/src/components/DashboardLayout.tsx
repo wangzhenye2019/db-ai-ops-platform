@@ -26,6 +26,7 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { LocalLoginGate, PasswordChangeGate } from "./LocalAuthGate";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "运维总览", path: "/" },
@@ -60,30 +61,8 @@ export default function DashboardLayout({
     return <DashboardLayoutSkeleton />
   }
 
-  if (!user) {
-    return (
-      <div className="blueprint-canvas flex items-center justify-center min-h-screen">
-        <div className="tech-card flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
-            <Activity className="h-8 w-8 text-cyan-200" />
-            <h1 className="font-display text-2xl font-semibold tracking-tight text-center text-white">
-              进入数据库运维中心
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              此控制台仅向已授权的运维成员开放。登录后可访问资产、执行与审计信息。
-            </p>
-          </div>
-          <Button
-            onClick={() => startLogin()}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
-          >
-            安全登录
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  if (!user) return <LocalLoginGate />;
+  if (user.mustChangePassword) return <PasswordChangeGate username={user.name ?? user.openId} onComplete={() => window.location.assign("/")} />;
 
   return (
     <SidebarProvider

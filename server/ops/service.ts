@@ -2,12 +2,14 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   controlledExecutorNodes, databaseInstances, executionLogs, incidentAnalyses,
-  monitoringIntegrations, notificationEvents, operationalAlerts, runbookExecutions, runbooks,
+  monitoringIntegrations, monitoringMetricSnapshots, notificationEvents, operationalAlerts, runbookExecutions, runbooks,
 } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { invokeLLM, listLLMModels } from "../_core/llm";
 import { notifyOwner } from "../_core/notification";
 import { getCatalogRunbook } from "./catalog";
+import { assertExecutionPolicy } from "./executionPolicy";
+import { assertCancellableExecution, assertRetryableExecution } from "./executionActionPolicy";
 
 const emptyOverview = {
   instances: { total: 0, healthy: 0, warning: 0, critical: 0 },
@@ -87,7 +89,19 @@ export async function listRunbooks() {
 export async function createRunbook(input: typeof runbooks.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("运维数据服务不可用");
-  await db.insert(runbooks).values(input);
+  const created = await db.insert(runbooks).values(input).$returningId();
+  return created[0]?.id;
+}
+
+export async function createIncidentRunbookExecution(input: {
+  draft: { title: string; category: typeof runbooks.$inferInsert.category; description?: string; compatibleEngines: string[]; riskLevel: typeof runbooks.$inferInsert.riskLevel; approvalRequired: boolean; steps: Array<{ name: string; action: string; requiresConfirmation?: boolean }>; parameters: Record<string, unknown> };
+  instanceId?: number;
+  alertId?: number;
+  createdBy: string;
+}) {
+  const runbookId = await createRunbook({ title: input.draft.title, category: input.draft.category, description: input.draft.description, compatibleEngines: input.draft.compatibleEngines, riskLevel: input.draft.riskLevel, approvalRequired: input.draft.approvalRequired, status: "active", steps: input.draft.steps, createdBy: input.createdBy });
+  if (!runbookId) throw new Error("智能 Runbook 创建失败");
+  return createExecution({ runbookId, instanceId: input.instanceId, triggerSource: "incident_auto", parameters: { ...input.draft.parameters, analysisSource: "incident_auto", alertId: input.alertId }, createdBy: input.createdBy });
 }
 
 export async function listExecutions() {
@@ -121,6 +135,8 @@ export async function createExecution(input: {
   runbookId?: number;
   instanceId?: number;
   executorNodeId?: number;
+  scheduledAt?: Date;
+  triggerSource?: "manual" | "incident_auto" | "scheduled" | "retry";
   parameters?: Record<string, unknown>;
   createdBy: string;
 }) {
@@ -132,9 +148,23 @@ export async function createExecution(input: {
     custom = (await db.select().from(runbooks).where(eq(runbooks.id, input.runbookId)).limit(1))[0];
   }
   if (!source && !custom) throw new Error("未找到可执行的 Runbook");
+  const [instance, executor] = await Promise.all([
+    input.instanceId ? db.select().from(databaseInstances).where(eq(databaseInstances.id, input.instanceId)).limit(1) : [],
+    input.executorNodeId ? db.select().from(controlledExecutorNodes).where(eq(controlledExecutorNodes.id, input.executorNodeId)).limit(1) : [],
+  ]);
+  assertExecutionPolicy({
+    runbook: { title: source?.title ?? custom!.title, compatibleEngines: source?.compatibleEngines ?? custom!.compatibleEngines, status: custom?.status },
+    requestedInstanceId: input.instanceId,
+    instance: instance[0],
+    requestedExecutorNodeId: input.executorNodeId,
+    executor: executor[0],
+  });
   const category = source?.category ?? custom!.category;
   const riskLevel = source?.riskLevel ?? custom!.riskLevel;
   const approvalRequired = source?.approvalRequired ?? custom!.approvalRequired;
+  const scheduledAt = input.scheduledAt && input.scheduledAt.getTime() > Date.now() ? input.scheduledAt : undefined;
+  const initialStatus = scheduledAt ? "scheduled" : approvalRequired ? "awaiting_approval" : "queued";
+  const triggerSource = scheduledAt ? "scheduled" : input.triggerSource ?? "manual";
   const executionKey = `exec_${nanoid(14)}`;
   await db.insert(runbookExecutions).values({
     executionKey,
@@ -145,7 +175,9 @@ export async function createExecution(input: {
     executorNodeId: input.executorNodeId,
     category,
     riskLevel,
-    status: approvalRequired ? "awaiting_approval" : "queued",
+    status: initialStatus,
+    triggerSource,
+    scheduledAt,
     input: input.parameters ?? {},
     confirmationRequired: approvalRequired,
     createdBy: input.createdBy,
@@ -156,11 +188,36 @@ export async function createExecution(input: {
       executionId: execution.id,
       level: "audit",
       phase: "control_plane",
-      message: approvalRequired ? "执行单已创建，等待人工确认。" : "执行单已创建，等待受控执行节点接管。",
+      message: scheduledAt ? `执行单已创建，计划于 ${scheduledAt.toISOString()} 进入调度流程。` : approvalRequired ? "执行单已创建，等待人工确认。" : "执行单已创建，等待受控执行节点接管。",
       metadata: { executionKey, riskLevel },
     });
   }
-  return { executionKey, status: approvalRequired ? "awaiting_approval" : "queued" };
+  return { executionKey, status: initialStatus };
+}
+
+export async function cancelExecution(executionKey: string, cancelledBy: string) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  const execution = (await db.select().from(runbookExecutions).where(eq(runbookExecutions.executionKey, executionKey)).limit(1))[0];
+  if (!execution) throw new Error("未找到执行单");
+  assertCancellableExecution(execution.status);
+  await db.update(runbookExecutions).set({ status: "cancelled", completedAt: new Date() }).where(eq(runbookExecutions.id, execution.id));
+  await db.insert(executionLogs).values({ executionId: execution.id, level: "audit", phase: "control_plane", message: `执行单已由 ${cancelledBy} 撤销。`, metadata: { action: "cancel", cancelledBy } });
+  return { executionKey, status: "cancelled" as const };
+}
+
+export async function retryExecution(executionKey: string, createdBy: string) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  const source = (await db.select().from(runbookExecutions).where(eq(runbookExecutions.executionKey, executionKey)).limit(1))[0];
+  if (!source) throw new Error("未找到执行单");
+  assertRetryableExecution(source.status);
+  const nextKey = `exec_${nanoid(14)}`;
+  const nextStatus = source.confirmationRequired ? "awaiting_approval" : "queued";
+  await db.insert(runbookExecutions).values({ executionKey: nextKey, runbookId: source.runbookId, templateKey: source.templateKey, runbookTitle: source.runbookTitle, instanceId: source.instanceId, executorNodeId: source.executorNodeId, category: source.category, riskLevel: source.riskLevel, status: nextStatus, triggerSource: "retry", retryOfExecutionId: source.id, input: source.input, confirmationRequired: source.confirmationRequired, createdBy });
+  const retry = (await db.select().from(runbookExecutions).where(eq(runbookExecutions.executionKey, nextKey)).limit(1))[0];
+  if (retry) await db.insert(executionLogs).values({ executionId: retry.id, level: "audit", phase: "control_plane", message: `由执行单 ${executionKey} 触发重试，参数已复制并等待后续处理。`, metadata: { action: "retry", retryOf: executionKey } });
+  return { executionKey: nextKey, status: nextStatus };
 }
 
 export async function approveExecution(executionKey: string, approvedBy: string, note?: string) {
@@ -176,6 +233,14 @@ export async function approveExecution(executionKey: string, approvedBy: string,
 export async function listIntegrations() {
   const db = await getDb();
   return db ? db.select().from(monitoringIntegrations).orderBy(desc(monitoringIntegrations.updatedAt)) : [];
+}
+
+export async function getIntegrationMapping(provider: "zabbix" | "prometheus" | "xxl_job") {
+  const db = await getDb();
+  if (!db) throw new Error("operations database unavailable");
+  const integration = (await db.select().from(monitoringIntegrations).where(eq(monitoringIntegrations.provider, provider)).orderBy(desc(monitoringIntegrations.updatedAt)).limit(1))[0];
+  if (!integration) throw new Error(`no configured ${provider} integration`);
+  return integration.mapping ?? {};
 }
 
 export async function createIntegration(input: typeof monitoringIntegrations.$inferInsert) {
@@ -228,7 +293,7 @@ export async function recordAlert(input: typeof operationalAlerts.$inferInsert) 
   const db = await getDb();
   if (!db) throw new Error("运维数据服务不可用");
   await db.insert(operationalAlerts).values(input);
-  if (shouldNotifySeverity(input.severity)) {
+  if (input.status !== "resolved" && shouldNotifySeverity(input.severity)) {
     const title = `[${input.severity.toUpperCase()}] 数据库运维事件`;
     const content = `${input.title}${input.metric ? `；指标：${input.metric}` : ""}${input.currentValue ? `；当前值：${input.currentValue}` : ""}`;
     let status: "delivered" | "failed" = "delivered";
@@ -240,6 +305,48 @@ export async function recordAlert(input: typeof operationalAlerts.$inferInsert) 
     }
     await db.insert(notificationEvents).values({ category: "high_priority_alert", severity: input.severity, title, content, status, deliveredAt: status === "delivered" ? new Date() : undefined });
   }
+}
+
+export async function ingestExternalAlert(input: { provider: string; externalId?: string; title: string; severity: "critical" | "high" | "medium" | "low" | "info"; status: "open" | "acknowledged" | "resolved"; metric?: string; currentValue?: string; threshold?: string; instanceId?: number; context: Record<string, unknown> }) {
+  const db = await getDb();
+  if (!db) throw new Error("operations database unavailable");
+  const integration = (await db.select().from(monitoringIntegrations).where(eq(monitoringIntegrations.provider, input.provider as "zabbix" | "prometheus" | "xxl_job")).orderBy(desc(monitoringIntegrations.updatedAt)).limit(1))[0];
+  if (!integration) throw new Error(`no configured ${input.provider} integration`);
+  const existing = input.externalId ? (await db.select().from(operationalAlerts).where(and(eq(operationalAlerts.integrationId, integration.id), eq(operationalAlerts.externalId, input.externalId))).limit(1))[0] : undefined;
+  await db.update(monitoringIntegrations).set({ status: "connected", lastSyncAt: new Date() }).where(eq(monitoringIntegrations.id, integration.id));
+  if (existing) {
+    await db.update(operationalAlerts).set({ title: input.title, severity: input.severity, status: input.status, metric: input.metric, currentValue: input.currentValue, threshold: input.threshold, context: input.context, resolvedAt: input.status === "resolved" ? new Date() : undefined }).where(eq(operationalAlerts.id, existing.id));
+    return { id: existing.id, action: "updated" as const };
+  }
+  await recordAlert({ externalId: input.externalId, integrationId: integration.id, instanceId: input.instanceId, title: input.title, severity: input.severity, status: input.status, metric: input.metric, currentValue: input.currentValue, threshold: input.threshold, context: input.context, resolvedAt: input.status === "resolved" ? new Date() : undefined });
+  return { action: "created" as const };
+}
+
+export async function ingestExternalMetric(input: { provider: string; metric: string; value: string; unit?: string; instanceId?: number; labels: Record<string, unknown> }) {
+  const db = await getDb();
+  if (!db) throw new Error("operations database unavailable");
+  const integration = (await db.select().from(monitoringIntegrations).where(eq(monitoringIntegrations.provider, input.provider as "zabbix" | "prometheus")).orderBy(desc(monitoringIntegrations.updatedAt)).limit(1))[0];
+  if (!integration) throw new Error(`no configured ${input.provider} integration`);
+  await db.insert(monitoringMetricSnapshots).values({ integrationId: integration.id, instanceId: input.instanceId, metric: input.metric, value: input.value, unit: input.unit, labels: input.labels });
+  await db.update(monitoringIntegrations).set({ status: "connected", lastSyncAt: new Date() }).where(eq(monitoringIntegrations.id, integration.id));
+  return { metric: input.metric, action: "recorded" as const };
+}
+
+export async function ingestExternalTaskStatus(input: { provider: string; executionKey: string; status: "queued" | "dispatched" | "running" | "succeeded" | "failed" | "cancelled"; message?: string; result?: Record<string, unknown> }) {
+  if (input.provider !== "xxl_job") throw new Error("task status sync is only supported for xxl_job");
+  const db = await getDb();
+  if (!db) throw new Error("operations database unavailable");
+  const execution = (await db.select().from(runbookExecutions).where(eq(runbookExecutions.executionKey, input.executionKey)).limit(1))[0];
+  if (!execution) throw new Error("runbook execution not found");
+  const completedAt = ["succeeded", "failed", "cancelled"].includes(input.status) ? new Date() : undefined;
+  await db.update(runbookExecutions).set({ status: input.status, completedAt, result: input.result }).where(eq(runbookExecutions.id, execution.id));
+  await db.insert(executionLogs).values({ executionId: execution.id, level: input.status === "failed" ? "error" : "info", phase: "xxl_job_sync", message: input.message ?? `XXL-Job 状态同步：${input.status}`, metadata: { provider: input.provider, status: input.status } });
+  return { executionKey: execution.executionKey, status: input.status };
+}
+
+export async function listRecentMetrics() {
+  const db = await getDb();
+  return db ? db.select().from(monitoringMetricSnapshots).orderBy(desc(monitoringMetricSnapshots.occurredAt)).limit(30) : [];
 }
 
 export async function generateIncidentAnalysis(input: { context?: string; instanceId?: number; alertId?: number; createdBy: string }) {

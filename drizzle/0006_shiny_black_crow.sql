@@ -1,0 +1,2 @@
+ALTER TABLE `runbook_executions` ADD `triggerSource` enum('manual','incident_auto','scheduled','retry') DEFAULT 'manual' NOT NULL;--> statement-breakpoint
+ALTER TABLE `runbook_executions` ADD `retryOfExecutionId` int;

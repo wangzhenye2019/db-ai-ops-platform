@@ -8,11 +8,18 @@ describe("运维输入契约", () => {
     expect(valid.success).toBe(true);
     const invalid = assetInputSchema.safeParse({ name: "bad", engine: "mysql", host: "db", port: 70000, environment: "production", healthStatus: "unknown", healthScore: 0, capabilities: [], tags: [] });
     expect(invalid.success).toBe(false);
+    const invalidCapacity = assetInputSchema.safeParse({ name: "capacity-invalid", engine: "mysql", host: "db", port: 3306, capacityGb: 100, usedCapacityGb: 101, environment: "production", healthStatus: "unknown", healthScore: 0, capabilities: [], tags: [] });
+    expect(invalidCapacity.success).toBe(false);
   });
 
   it("要求执行单选择 Runbook，且审批操作必须显式确认", () => {
     expect(executionInputSchema.safeParse({ parameters: {} }).success).toBe(false);
     expect(executionInputSchema.safeParse({ templateKey: "backup-verify", parameters: { scope: "full" } }).success).toBe(true);
+    const scheduled = executionInputSchema.safeParse({ templateKey: "baseline-inspection", scheduledAt: "2026-08-28T09:30:00.000Z", parameters: { scope: "metrics" } });
+    expect(scheduled.success).toBe(true);
+    if (scheduled.success) expect(scheduled.data.scheduledAt).toBeInstanceOf(Date);
+    expect(executionInputSchema.safeParse({ templateKey: "connection-relief", triggerSource: "incident_auto" }).success).toBe(true);
+    expect(executionInputSchema.safeParse({ templateKey: "backup-verify", runbookId: 1 }).success).toBe(false);
     expect(approvalInputSchema.safeParse({ executionKey: "exec_123456789", confirmed: false }).success).toBe(false);
     expect(approvalInputSchema.safeParse({ executionKey: "exec_123456789", confirmed: true }).success).toBe(true);
   });

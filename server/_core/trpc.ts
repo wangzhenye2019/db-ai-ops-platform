@@ -25,10 +25,18 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
+const requirePasswordChangeCompleted = t.middleware(async opts => {
+  if (opts.ctx.user?.mustChangePassword) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "首次登录后必须先修改初始密码" });
+  }
+  return opts.next();
+});
+
+export const passwordChangeProcedure = t.procedure.use(requireUser);
+export const protectedProcedure = t.procedure.use(requireUser).use(requirePasswordChangeCompleted);
 
 export const adminProcedure = t.procedure.use(
-  t.middleware(async opts => {
+  requireUser.unstable_pipe(requirePasswordChangeCompleted).unstable_pipe(t.middleware(async opts => {
     const { ctx, next } = opts;
 
     if (!ctx.user || ctx.user.role !== 'admin') {
@@ -41,5 +49,5 @@ export const adminProcedure = t.procedure.use(
         user: ctx.user,
       },
     });
-  }),
+  })),
 );

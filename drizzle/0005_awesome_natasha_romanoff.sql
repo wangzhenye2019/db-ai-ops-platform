@@ -1,0 +1,2 @@
+ALTER TABLE `runbook_executions` MODIFY COLUMN `status` enum('scheduled','awaiting_approval','queued','dispatched','running','succeeded','failed','cancelled') NOT NULL DEFAULT 'awaiting_approval';--> statement-breakpoint
+ALTER TABLE `runbook_executions` ADD `scheduledAt` timestamp;

@@ -15,6 +15,18 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const localAccounts = mysqlTable("local_accounts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique().references(() => users.id),
+  username: varchar("username", { length: 64 }).notNull().unique(),
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  mustChangePassword: boolean("mustChangePassword").notNull().default(true),
+  sessionVersion: int("sessionVersion").notNull().default(1),
+  passwordChangedAt: timestamp("passwordChangedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export const databaseEngineValues = [
   "mysql", "postgresql", "oracle", "sql_server", "dameng", "kingbase", "oceanbase",
   "polardb", "gaussdb", "tidb", "goldendb", "gbase", "tdsql", "opengauss",
@@ -23,7 +35,8 @@ export const environmentValues = ["production", "staging", "test", "development"
 export const healthStatusValues = ["healthy", "warning", "critical", "unknown"] as const;
 export const runbookCategoryValues = ["deployment", "backup_recovery", "inspection", "self_healing"] as const;
 export const riskLevelValues = ["low", "medium", "high", "critical"] as const;
-export const executionStatusValues = ["awaiting_approval", "queued", "dispatched", "running", "succeeded", "failed", "cancelled"] as const;
+export const executionStatusValues = ["scheduled", "awaiting_approval", "queued", "dispatched", "running", "succeeded", "failed", "cancelled"] as const;
+export const executionTriggerValues = ["manual", "incident_auto", "scheduled", "retry"] as const;
 export const integrationProviderValues = ["zabbix", "prometheus", "xxl_job"] as const;
 
 export const databaseInstances = mysqlTable("database_instances", {
@@ -91,8 +104,11 @@ export const runbookExecutions = mysqlTable("runbook_executions", {
   category: mysqlEnum("category", runbookCategoryValues).notNull(),
   riskLevel: mysqlEnum("riskLevel", riskLevelValues).notNull(),
   status: mysqlEnum("status", executionStatusValues).notNull().default("awaiting_approval"),
+  triggerSource: mysqlEnum("triggerSource", executionTriggerValues).notNull().default("manual"),
+  retryOfExecutionId: int("retryOfExecutionId"),
   input: json("input").$type<Record<string, unknown>>(),
   confirmationRequired: boolean("confirmationRequired").notNull().default(true),
+  scheduledAt: timestamp("scheduledAt"),
   approvalNote: text("approvalNote"),
   approvedBy: varchar("approvedBy", { length: 64 }),
   approvedAt: timestamp("approvedAt"),
@@ -133,6 +149,21 @@ export const monitoringIntegrations = mysqlTable("monitoring_integrations", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
+
+export const monitoringMetricSnapshots = mysqlTable("monitoring_metric_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  integrationId: int("integrationId"),
+  instanceId: int("instanceId"),
+  metric: varchar("metric", { length: 128 }).notNull(),
+  value: varchar("value", { length: 128 }).notNull(),
+  unit: varchar("unit", { length: 32 }),
+  labels: json("labels").$type<Record<string, unknown>>(),
+  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  foreignKey({ columns: [table.integrationId], foreignColumns: [monitoringIntegrations.id], name: "metric_int_fk" }),
+  foreignKey({ columns: [table.instanceId], foreignColumns: [databaseInstances.id], name: "metric_inst_fk" }),
+]);
 
 export const operationalAlerts = mysqlTable("operational_alerts", {
   id: int("id").autoincrement().primaryKey(),

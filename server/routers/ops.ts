@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { databaseEngineValues, environmentValues, healthStatusValues, integrationProviderValues, riskLevelValues, runbookCategoryValues } from "../../drizzle/schema";
+import { databaseEngineValues, environmentValues, executionTriggerValues, healthStatusValues, integrationProviderValues, riskLevelValues, runbookCategoryValues } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { adapterMatrix, builtInRunbooks } from "../ops/catalog";
 import * as ops from "../ops/service";
@@ -11,15 +11,19 @@ export const assetInputSchema = z.object({
   healthStatus: z.enum(healthStatusValues).default("unknown"), healthScore: z.number().int().min(0).max(100).default(0),
   owner: z.string().max(128).optional(), credentialRef: z.string().max(160).optional(), capacityGb: z.number().int().positive().optional(), usedCapacityGb: z.number().int().nonnegative().optional(),
   capabilities: z.array(z.string().max(48)).max(20).default([]), tags: z.array(z.string().max(48)).max(20).default([]),
-});
-export const executionInputSchema = z.object({ templateKey: z.string().max(64).optional(), runbookId: z.number().int().positive().optional(), instanceId: z.number().int().positive().optional(), executorNodeId: z.number().int().positive().optional(), parameters: jsonRecord.optional() }).refine(value => Boolean(value.templateKey || value.runbookId), "请选择一个 Runbook");
+}).refine(value => value.capacityGb === undefined || value.usedCapacityGb === undefined || value.usedCapacityGb <= value.capacityGb, "已用容量不能超过总容量");
+export const executionInputSchema = z.object({ templateKey: z.string().max(64).optional(), runbookId: z.number().int().positive().optional(), instanceId: z.number().int().positive().optional(), executorNodeId: z.number().int().positive().optional(), scheduledAt: z.coerce.date().optional(), triggerSource: z.enum(executionTriggerValues).optional(), parameters: jsonRecord.optional() })
+  .refine(value => Boolean(value.templateKey || value.runbookId), "请选择一个 Runbook")
+  .refine(value => !(value.templateKey && value.runbookId), "内置模板与自定义 Runbook 只能选择其一");
 export const approvalInputSchema = z.object({ executionKey: z.string().min(8).max(64), confirmed: z.literal(true), note: z.string().max(1000).optional() });
 export const incidentOutputSchema = z.object({ rootCause: z.string(), confidence: z.number(), impact: z.string(), risk: z.string(), evidence: z.array(z.string()), recommendations: z.array(z.string()), runbookDraft: z.object({ title: z.string(), category: z.enum(runbookCategoryValues), riskLevel: z.enum(riskLevelValues), approvalRequired: z.boolean(), compatibleEngines: z.array(z.enum(databaseEngineValues)), parameters: jsonRecord, steps: z.array(z.object({ name: z.string(), action: z.string(), requiresConfirmation: z.boolean() })).min(1) }), requiresHumanConfirmation: z.boolean() });
+export const incidentExecutionInputSchema = z.object({ draft: incidentOutputSchema.shape.runbookDraft, instanceId: z.number().int().positive().optional(), alertId: z.number().int().positive().optional(), rootCause: z.string().max(2000).optional() });
 
 export const opsRouter = router({
   overview: protectedProcedure.query(() => ops.getOverview()),
   activity: router({ recent: protectedProcedure.query(() => ops.listRecentDispositionRecords()) }),
   risks: protectedProcedure.query(() => ops.listPerformanceRisks()),
+  metrics: router({ recent: protectedProcedure.query(() => ops.listRecentMetrics()) }),
   catalog: protectedProcedure.query(() => ({ adapters: adapterMatrix, runbooks: builtInRunbooks })),
   assets: router({
     list: protectedProcedure.query(() => ops.listInstances()),
@@ -36,6 +40,8 @@ export const opsRouter = router({
     executionLogs: protectedProcedure.input(z.object({ executionKey: z.string().min(8).max(64) })).query(({ input }) => ops.listExecutionLogs(input.executionKey)),
     createExecution: protectedProcedure.input(executionInputSchema).mutation(({ input, ctx }) => ops.createExecution({ ...input, createdBy: ctx.user.openId })),
     approveExecution: protectedProcedure.input(approvalInputSchema).mutation(({ input, ctx }) => ops.approveExecution(input.executionKey, ctx.user.openId, input.note)),
+    cancelExecution: protectedProcedure.input(z.object({ executionKey: z.string().min(8).max(64) })).mutation(({ input, ctx }) => ops.cancelExecution(input.executionKey, ctx.user.openId)),
+    retryExecution: protectedProcedure.input(z.object({ executionKey: z.string().min(8).max(64) })).mutation(({ input, ctx }) => ops.retryExecution(input.executionKey, ctx.user.openId)),
   }),
   integrations: router({
     list: protectedProcedure.query(() => ops.listIntegrations()),
@@ -51,5 +57,6 @@ export const opsRouter = router({
   }),
   intelligence: router({
     analyze: protectedProcedure.input(z.object({ context: z.string().max(12000).optional(), instanceId: z.number().int().positive().optional(), alertId: z.number().int().positive().optional() }).refine(value => Boolean(value.context?.trim() || value.instanceId || value.alertId), "请提供诊断上下文，或选择实例 / 告警")).mutation(({ input, ctx }) => ops.generateIncidentAnalysis({ ...input, createdBy: ctx.user.openId })),
+    executeDraft: protectedProcedure.input(incidentExecutionInputSchema).mutation(({ input, ctx }) => ops.createIncidentRunbookExecution({ draft: { ...input.draft, description: input.rootCause ? `由智能诊断生成：${input.rootCause}` : undefined }, instanceId: input.instanceId, alertId: input.alertId, createdBy: ctx.user.openId })),
   }),
 });

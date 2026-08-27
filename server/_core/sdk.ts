@@ -6,6 +6,7 @@ import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
+import { isCurrentLocalSession } from "../auth/localAuthSecurity";
 import { ENV } from "./env";
 import type {
   ExchangeTokenRequest,
@@ -22,6 +23,9 @@ export type SessionPayload = {
   openId: string;
   appId: string;
   name: string;
+  authType?: "oauth" | "local";
+  mustChangePassword?: boolean;
+  localSessionVersion?: number;
 };
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
@@ -165,13 +169,16 @@ class SDKServer {
    */
   async createSessionToken(
     openId: string,
-    options: { expiresInMs?: number; name?: string } = {}
+    options: { expiresInMs?: number; name?: string; authType?: "oauth" | "local"; mustChangePassword?: boolean; localSessionVersion?: number } = {}
   ): Promise<string> {
     return this.signSession(
       {
         openId,
         appId: ENV.appId,
         name: options.name || "",
+        authType: options.authType,
+        mustChangePassword: options.mustChangePassword,
+        localSessionVersion: options.localSessionVersion,
       },
       options
     );
@@ -190,6 +197,9 @@ class SDKServer {
       openId: payload.openId,
       appId: payload.appId,
       name: payload.name,
+      authType: payload.authType,
+      mustChangePassword: payload.mustChangePassword,
+      localSessionVersion: payload.localSessionVersion,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -198,7 +208,7 @@ class SDKServer {
 
   async verifySession(
     cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<{ openId: string; appId: string; name: string; authType?: "oauth" | "local"; mustChangePassword?: boolean; localSessionVersion?: number } | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -209,7 +219,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { openId, appId, name, authType, mustChangePassword, localSessionVersion } = payload as Record<string, unknown>;
 
       if (
         !isNonEmptyString(openId) ||
@@ -224,6 +234,9 @@ class SDKServer {
         openId,
         appId,
         name,
+        authType: authType === "local" || authType === "oauth" ? authType : undefined,
+        mustChangePassword: mustChangePassword === true,
+        localSessionVersion: typeof localSessionVersion === "number" ? localSessionVersion : undefined,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -289,6 +302,14 @@ class SDKServer {
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
 
+    if (session.authType === "local") {
+      if (!user) throw ForbiddenError("Local user not found");
+      const account = await db.getLocalAccountByUserId(user.id);
+      if (!account || !isCurrentLocalSession(session.localSessionVersion, account.sessionVersion)) throw ForbiddenError("Local session expired");
+      await db.upsertUser({ openId: user.openId, lastSignedIn: signedInAt });
+      return { ...user, mustChangePassword: account.mustChangePassword };
+    }
+
     // If user not in DB, sync from OAuth server automatically
     if (!user) {
       try {
@@ -326,6 +347,7 @@ const CRON_OPEN_ID_PREFIX = "cron_";
 export type AuthenticatedUser = User & {
   taskUid?: string;
   isCron?: boolean;
+  mustChangePassword?: boolean;
 };
 
 function buildCronUser(

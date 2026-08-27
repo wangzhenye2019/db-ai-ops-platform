@@ -9,6 +9,8 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerExecutorGateway } from "../ops/executorGateway";
+import { registerIntegrationGateway } from "../ops/integrationGateway";
+import { registerLocalAuthRoutes } from "../auth/localAuthRoutes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -38,6 +40,8 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerExecutorGateway(app);
+  registerIntegrationGateway(app);
+  registerLocalAuthRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",

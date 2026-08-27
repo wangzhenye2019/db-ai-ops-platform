@@ -1,30 +1,12 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { and, asc, eq, isNull, or } from "drizzle-orm";
 import type { Express, Request } from "express";
 import { controlledExecutorNodes, executionLogs, notificationEvents, runbookExecutions } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { notifyOwner } from "../_core/notification";
-
-const LEASE_WINDOW_MS = 10 * 60 * 1000;
+import { LEASE_WINDOW_MS, createLeaseToken, hasMatchingSecret, hasValidLease } from "./executorSecurity";
 
 function getGatewaySecret() {
   return process.env.EXECUTOR_GATEWAY_SHARED_SECRET;
-}
-
-function hasMatchingSecret(candidate: string | undefined, secret: string | undefined) {
-  if (!candidate || !secret) return false;
-  const received = Buffer.from(candidate);
-  const expected = Buffer.from(secret);
-  return received.length === expected.length && timingSafeEqual(received, expected);
-}
-
-function createLeaseToken(nodeKey: string, executionKey: string, expiresAt: number, secret: string) {
-  return createHmac("sha256", secret).update(`${nodeKey}:${executionKey}:${expiresAt}`).digest("base64url");
-}
-
-function hasValidLease(nodeKey: string, executionKey: string, expiresAt: number, token: string, secret: string) {
-  if (!Number.isFinite(expiresAt) || expiresAt < Date.now() || expiresAt > Date.now() + LEASE_WINDOW_MS + 10_000) return false;
-  return hasMatchingSecret(token, createLeaseToken(nodeKey, executionKey, expiresAt, secret));
 }
 
 function stringList(value: unknown) {
