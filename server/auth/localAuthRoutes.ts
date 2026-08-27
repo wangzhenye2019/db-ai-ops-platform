@@ -27,7 +27,7 @@ export function registerLocalAuthRoutes(app: Express, overrides: Partial<LocalAu
     try {
       const user = await dependencies.authenticateRequest(req);
       const { currentPassword, nextPassword } = req.body ?? {};
-      if (typeof nextPassword !== "string" || (currentPassword !== undefined && typeof currentPassword !== "string")) return res.status(400).json({ ok: false, error: "invalid password input" });
+      if (typeof currentPassword !== "string" || typeof nextPassword !== "string") return res.status(400).json({ ok: false, error: "current and next passwords are required" });
       const result = await dependencies.changeLocalPassword(user.id, currentPassword, nextPassword);
       const token = await dependencies.createSessionToken(user.openId, { name: user.name ?? user.openId, authType: "local", mustChangePassword: false, localSessionVersion: result.sessionVersion, expiresInMs: 60 * 60 * 1000 });
       res.cookie(COOKIE_NAME, token, getSessionCookieOptions(req));

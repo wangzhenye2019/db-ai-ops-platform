@@ -1,6 +1,6 @@
 import express from "express";
 import type { AddressInfo } from "net";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { registerLocalAuthRoutes } from "./localAuthRoutes";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
@@ -49,6 +49,19 @@ describe("本地初始化凭据", () => {
       expect(issuedOptions[0]).toMatchObject({ authType: "local", mustChangePassword: false, localSessionVersion: 2 });
       const context: TrpcContext = { user: { ...user, mustChangePassword: false }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: {} as TrpcContext["res"] };
       await expect(appRouter.createCaller(context).ops.catalog()).resolves.toMatchObject({ adapters: expect.any(Array), runbooks: expect.any(Array) });
+    } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+  });
+
+  it("首次改密缺少当前临时密码时拒绝请求且不调用改密服务", async () => {
+    const changeLocalPassword = vi.fn();
+    const app = express(); app.use(express.json());
+    registerLocalAuthRoutes(app, { authenticateRequest: async () => ({ id: 9, openId: "local:bootstrap", name: "bootstrap", email: null, loginMethod: "local", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(), mustChangePassword: true }), changeLocalPassword, createSessionToken: async () => "must-not-issue" });
+    const server = await new Promise<ReturnType<typeof app.listen>>(resolve => { const listener = app.listen(0, () => resolve(listener)); });
+    const { port } = server.address() as AddressInfo;
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/api/local-auth/change-password`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nextPassword: "Strong-Password_2026!" }) });
+      expect(response.status).toBe(400);
+      expect(changeLocalPassword).not.toHaveBeenCalled();
     } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
   });
 });

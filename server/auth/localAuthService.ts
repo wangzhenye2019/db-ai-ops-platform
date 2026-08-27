@@ -57,8 +57,7 @@ export async function changeLocalPassword(userId: number, currentPassword: strin
   if (!db) throw new Error("本地认证服务不可用");
   const account = (await db.select().from(localAccounts).where(eq(localAccounts.userId, userId)).limit(1))[0];
   if (!account) throw new Error("当前账户不是本地管理员账户");
-  if (!account.mustChangePassword && (!currentPassword || !await matchesPassword(currentPassword, account.passwordHash))) throw new Error("当前密码错误");
-  if (account.mustChangePassword && currentPassword && !await matchesPassword(currentPassword, account.passwordHash)) throw new Error("初始密码错误");
+  if (!currentPassword || !await matchesPassword(currentPassword, account.passwordHash)) throw new Error(account.mustChangePassword ? "初始密码错误" : "当前密码错误");
   validateLocalPassword(nextPassword);
   const sessionVersion = account.sessionVersion + 1;
   await db.update(localAccounts).set({ passwordHash: await hashPassword(nextPassword), mustChangePassword: false, sessionVersion, passwordChangedAt: new Date() }).where(and(eq(localAccounts.id, account.id), eq(localAccounts.sessionVersion, account.sessionVersion)));
