@@ -16,6 +16,10 @@ export const executionInputSchema = z.object({ templateKey: z.string().max(64).o
   .refine(value => Boolean(value.templateKey || value.runbookId), "请选择一个 Runbook")
   .refine(value => !(value.templateKey && value.runbookId), "内置模板与自定义 Runbook 只能选择其一");
 export const approvalInputSchema = z.object({ executionKey: z.string().min(8).max(64), confirmed: z.literal(true), note: z.string().max(1000).optional() });
+export const serverAssetInputSchema = z.object({ name: z.string().min(2).max(128), hostname: z.string().min(1).max(255), ipAddress: z.string().max(64).optional(), operatingSystem: z.string().max(128).optional(), environment: z.enum(environmentValues).default("production"), status: z.enum(["online", "degraded", "offline", "unknown"]).default("unknown"), zone: z.string().max(128).optional(), owner: z.string().max(128).optional(), credentialRef: z.string().max(160).optional(), capabilities: z.array(z.string().max(64)).max(30).default([]), metadata: jsonRecord.optional() });
+export const changeRequestInputSchema = z.object({ title: z.string().min(2).max(160), engine: z.string().min(2).max(32), sqlText: z.string().min(1).max(100000), rollbackSql: z.string().max(100000).optional(), instanceId: z.number().int().positive().optional(), serverAssetId: z.number().int().positive().optional(), riskLevel: z.enum(riskLevelValues).default("medium") });
+export const sqlReviewPolicyInputSchema = z.object({ name: z.string().min(2).max(128), engine: z.string().max(32).optional(), enabled: z.boolean().default(true), rules: z.array(z.object({ key: z.string().min(1).max(64), severity: z.enum(["error", "warning", "info"]), message: z.string().min(1).max(500) })).max(100).default([]) });
+export const queryAuditInputSchema = z.object({ instanceId: z.number().int().positive().optional(), engine: z.string().min(2).max(32), sqlText: z.string().min(1).max(100000), maskedColumns: z.array(z.string().max(128)).max(100).default([]) });
 export const incidentOutputSchema = z.object({ rootCause: z.string(), confidence: z.number(), impact: z.string(), risk: z.string(), evidence: z.array(z.string()), recommendations: z.array(z.string()), runbookDraft: z.object({ title: z.string(), category: z.enum(runbookCategoryValues), riskLevel: z.enum(riskLevelValues), approvalRequired: z.boolean(), compatibleEngines: z.array(z.enum(databaseEngineValues)), parameters: jsonRecord, steps: z.array(z.object({ name: z.string(), action: z.string(), requiresConfirmation: z.boolean() })).min(1) }), requiresHumanConfirmation: z.boolean() });
 export const incidentExecutionInputSchema = z.object({ draft: incidentOutputSchema.shape.runbookDraft, instanceId: z.number().int().positive().optional(), alertId: z.number().int().positive().optional(), rootCause: z.string().max(2000).optional() });
 
@@ -28,6 +32,21 @@ export const opsRouter = router({
   assets: router({
     list: protectedProcedure.query(() => ops.listInstances()),
     create: protectedProcedure.input(assetInputSchema).mutation(({ input, ctx }) => ops.createInstance({ ...input, createdBy: ctx.user.openId })),
+  }),
+  serverAssets: router({
+    list: protectedProcedure.query(() => ops.listServerAssets()),
+    get: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(({ input }) => ops.getServerAsset(input.id)),
+    create: protectedProcedure.input(serverAssetInputSchema).mutation(({ input, ctx }) => ops.createServerAsset({ ...input, createdBy: ctx.user.openId })),
+    requestProbe: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input, ctx }) => ops.requestServerProbe(input.id, ctx.user.openId)),
+  }),
+  governance: router({
+    reviewSql: protectedProcedure.input(z.object({ sqlText: z.string().max(100000) })).query(({ input }) => ops.reviewSqlText(input.sqlText)),
+    changeRequests: protectedProcedure.query(() => ops.listChangeRequests()),
+    createChangeRequest: protectedProcedure.input(changeRequestInputSchema).mutation(({ input, ctx }) => ops.createChangeRequest({ ...input, requestedBy: ctx.user.openId })),
+    sqlReviewPolicies: protectedProcedure.query(() => ops.listSqlReviewPolicies()),
+    createSqlReviewPolicy: protectedProcedure.input(sqlReviewPolicyInputSchema).mutation(({ input, ctx }) => ops.createSqlReviewPolicy({ ...input, createdBy: ctx.user.openId })),
+    queryAuditRecords: protectedProcedure.query(() => ops.listQueryAuditRecords()),
+    createQueryAuditRecord: protectedProcedure.input(queryAuditInputSchema).mutation(({ input, ctx }) => ops.createQueryAuditRecord({ ...input, requestedBy: ctx.user.openId })),
   }),
   runbooks: router({
     list: protectedProcedure.query(() => ops.listRunbooks()),

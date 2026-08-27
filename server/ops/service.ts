@@ -1,8 +1,10 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { nanoid } from "nanoid";
 import {
-  controlledExecutorNodes, databaseInstances, executionLogs, incidentAnalyses,
-  monitoringIntegrations, monitoringMetricSnapshots, notificationEvents, operationalAlerts, runbookExecutions, runbooks,
+  changeRequests, controlledExecutorNodes, databaseInstances, executionLogs, incidentAnalyses,
+  monitoringIntegrations, monitoringMetricSnapshots, notificationEvents, operationalAlerts, queryAuditRecords, runbookExecutions, runbooks,
+  serverAssets, sqlReviewPolicies,
 } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { invokeLLM, listLLMModels } from "../_core/llm";
@@ -68,6 +70,91 @@ export async function getOverview() {
       connected: integrations.filter(item => item.status === "connected").length,
     },
   };
+}
+
+export async function listServerAssets() {
+  const db = await getDb();
+  return db ? db.select().from(serverAssets).orderBy(desc(serverAssets.updatedAt)) : [];
+}
+
+export async function createServerAsset(input: typeof serverAssets.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  await db.insert(serverAssets).values(input);
+}
+
+export async function getServerAsset(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  return (await db.select().from(serverAssets).where(eq(serverAssets.id, id)).limit(1))[0] ?? null;
+}
+
+export async function requestServerProbe(id: number, requestedBy: string) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  const asset = await getServerAsset(id);
+  if (!asset) throw new Error("未找到服务器资产");
+  const requestedAt = new Date();
+  await db.update(serverAssets).set({ probeRequestedAt: requestedAt, lastProbeMessage: `探活请求已由 ${requestedBy} 排队，等待受控执行节点回报。` }).where(eq(serverAssets.id, id));
+  return { id, status: "queued" as const, requestedAt };
+}
+
+export async function recordServerProbeResult(id: number, status: "online" | "degraded" | "offline" | "unknown", message: string) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  await db.update(serverAssets).set({ status, lastCheckedAt: new Date(), lastProbeMessage: message }).where(eq(serverAssets.id, id));
+  return { id, status, message };
+}
+
+export async function listSqlReviewPolicies() {
+  const db = await getDb();
+  return db ? db.select().from(sqlReviewPolicies).orderBy(desc(sqlReviewPolicies.updatedAt)) : [];
+}
+
+export async function createSqlReviewPolicy(input: typeof sqlReviewPolicies.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  await db.insert(sqlReviewPolicies).values(input);
+}
+
+export function reviewSqlText(sqlText: string) {
+  const normalized = sqlText.trim().replace(/\s+/g, " ");
+  const findings: Array<{ rule: string; severity: "error" | "warning" | "info"; message: string }> = [];
+  if (!normalized) findings.push({ rule: "SQL_EMPTY", severity: "error", message: "SQL 不能为空。" });
+  if (/\b(drop\s+(database|table)|truncate\s+table)\b/i.test(normalized)) findings.push({ rule: "DDL_DESTRUCTIVE", severity: "error", message: "检测到不可逆高风险结构变更，必须人工复核并提供回滚方案。" });
+  if (/\b(delete|update)\b/i.test(normalized) && !/\bwhere\b/i.test(normalized)) findings.push({ rule: "DML_NO_WHERE", severity: "error", message: "UPDATE/DELETE 缺少 WHERE 条件，已阻止进入自动执行流程。" });
+  if (/select\s+\*/i.test(normalized)) findings.push({ rule: "SELECT_STAR", severity: "warning", message: "建议显式列出字段，避免查询审计与敏感字段控制失效。" });
+  if (!findings.length) findings.push({ rule: "SQL_REVIEW_PASS", severity: "info", message: "未命中内置阻断规则，仍需按风险等级完成审批。" });
+  return { passed: !findings.some(item => item.severity === "error"), findings };
+}
+
+export async function createChangeRequest(input: { title: string; engine: string; sqlText: string; rollbackSql?: string; instanceId?: number; serverAssetId?: number; riskLevel?: "low" | "medium" | "high" | "critical"; requestedBy: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  const reviewResult = reviewSqlText(input.sqlText);
+  const requestKey = `chg_${nanoid(14)}`;
+  const status = reviewResult.passed ? "pending_review" : "rejected";
+  await db.insert(changeRequests).values({ requestKey, title: input.title, engine: input.engine, sqlText: input.sqlText, rollbackSql: input.rollbackSql, instanceId: input.instanceId, serverAssetId: input.serverAssetId, riskLevel: input.riskLevel ?? "medium", status, reviewResult, requestedBy: input.requestedBy });
+  return { requestKey, status, reviewResult };
+}
+
+export async function listChangeRequests() {
+  const db = await getDb();
+  return db ? db.select().from(changeRequests).orderBy(desc(changeRequests.updatedAt)).limit(30) : [];
+}
+
+export async function listQueryAuditRecords() {
+  const db = await getDb();
+  return db ? db.select().from(queryAuditRecords).orderBy(desc(queryAuditRecords.updatedAt)).limit(30) : [];
+}
+
+export async function createQueryAuditRecord(input: { instanceId?: number; engine: string; sqlText: string; requestedBy: string; maskedColumns?: string[] }) {
+  const db = await getDb();
+  if (!db) throw new Error("运维数据服务不可用");
+  const queryKey = `qry_${nanoid(14)}`;
+  const sqlHash = createHash("sha256").update(input.sqlText).digest("hex");
+  await db.insert(queryAuditRecords).values({ queryKey, instanceId: input.instanceId, engine: input.engine, sqlHash, status: "pending", maskedColumns: input.maskedColumns ?? [], requestedBy: input.requestedBy });
+  return { queryKey, status: "pending" as const };
 }
 
 export async function listInstances() {

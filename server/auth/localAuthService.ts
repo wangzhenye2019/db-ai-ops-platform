@@ -27,6 +27,10 @@ async function matchesPassword(password: string, encoded: string) {
   return received.length === expectedBytes.length && timingSafeEqual(received, expectedBytes);
 }
 
+export function isBootstrapRecoveryAttempt(accountExists: boolean, username: string, password: string) {
+  return accountExists && verifyBootstrapCredentials(username, password);
+}
+
 export async function authenticateLocalAccount(username: string, password: string) {
   const db = await getDb();
   if (!db) throw new Error("本地认证服务不可用");
@@ -40,10 +44,16 @@ export async function authenticateLocalAccount(username: string, password: strin
     await db.insert(localAccounts).values({ userId: user.id, username, passwordHash: await hashPassword(password), mustChangePassword: true, sessionVersion: 1 }).onDuplicateKeyUpdate({ set: { passwordHash: await hashPassword(password), mustChangePassword: true, sessionVersion: 1 } });
     account = (await db.select().from(localAccounts).where(eq(localAccounts.username, username)).limit(1))[0];
   }
-  if (!account || !await matchesPassword(password, account.passwordHash)) throw new Error("用户名或密码错误");
+  const bootstrapRecovery = isBootstrapRecoveryAttempt(Boolean(account), username, password);
+  if (!account || (!bootstrapRecovery && !await matchesPassword(password, account.passwordHash))) throw new Error("用户名或密码错误");
   const user = (await db.select().from(users).where(eq(users.id, account.userId)).limit(1))[0];
   if (!user) throw new Error("本地账户关联用户不存在");
   await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
+  if (bootstrapRecovery) {
+    const sessionVersion = account.sessionVersion + 1;
+    await db.update(localAccounts).set({ passwordHash: await hashPassword(password), mustChangePassword: true, sessionVersion, passwordChangedAt: new Date() }).where(and(eq(localAccounts.id, account.id), eq(localAccounts.sessionVersion, account.sessionVersion)));
+    return { user, mustChangePassword: true, sessionVersion };
+  }
   return { user, mustChangePassword: account.mustChangePassword, sessionVersion: account.sessionVersion };
 }
 

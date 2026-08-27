@@ -38,6 +38,9 @@ export const riskLevelValues = ["low", "medium", "high", "critical"] as const;
 export const executionStatusValues = ["scheduled", "awaiting_approval", "queued", "dispatched", "running", "succeeded", "failed", "cancelled"] as const;
 export const executionTriggerValues = ["manual", "incident_auto", "scheduled", "retry"] as const;
 export const integrationProviderValues = ["zabbix", "prometheus", "xxl_job"] as const;
+export const serverStatusValues = ["online", "degraded", "offline", "unknown"] as const;
+export const changeRequestStatusValues = ["draft", "pending_review", "approved", "rejected", "executing", "succeeded", "failed", "cancelled"] as const;
+export const queryAuditStatusValues = ["pending", "approved", "rejected", "executed", "failed"] as const;
 
 export const databaseInstances = mysqlTable("database_instances", {
   id: int("id").autoincrement().primaryKey(),
@@ -58,6 +61,27 @@ export const databaseInstances = mysqlTable("database_instances", {
   capabilities: json("capabilities").$type<string[]>(),
   tags: json("tags").$type<string[]>(),
   lastCheckedAt: timestamp("lastCheckedAt"),
+  createdBy: varchar("createdBy", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const serverAssets = mysqlTable("server_assets", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  hostname: varchar("hostname", { length: 255 }).notNull(),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  operatingSystem: varchar("operatingSystem", { length: 128 }),
+  environment: mysqlEnum("environment", environmentValues).notNull().default("production"),
+  status: mysqlEnum("status", serverStatusValues).notNull().default("unknown"),
+  zone: varchar("zone", { length: 128 }),
+  owner: varchar("owner", { length: 128 }),
+  credentialRef: varchar("credentialRef", { length: 160 }),
+  capabilities: json("capabilities").$type<string[]>(),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  lastCheckedAt: timestamp("lastCheckedAt"),
+  probeRequestedAt: timestamp("probeRequestedAt"),
+  lastProbeMessage: text("lastProbeMessage"),
   createdBy: varchar("createdBy", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -193,6 +217,52 @@ export const incidentAnalyses = mysqlTable("incident_analyses", {
   result: json("result").$type<Record<string, unknown>>(),
   createdBy: varchar("createdBy", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const sqlReviewPolicies = mysqlTable("sql_review_policies", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  engine: varchar("engine", { length: 32 }),
+  enabled: boolean("enabled").notNull().default(true),
+  rules: json("rules").$type<Array<{ key: string; severity: "error" | "warning" | "info"; message: string }>>(),
+  createdBy: varchar("createdBy", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const changeRequests = mysqlTable("change_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  requestKey: varchar("requestKey", { length: 64 }).notNull().unique(),
+  title: varchar("title", { length: 160 }).notNull(),
+  instanceId: int("instanceId").references(() => databaseInstances.id),
+  serverAssetId: int("serverAssetId").references(() => serverAssets.id),
+  engine: varchar("engine", { length: 32 }).notNull(),
+  sqlText: text("sqlText").notNull(),
+  rollbackSql: text("rollbackSql"),
+  riskLevel: mysqlEnum("riskLevel", riskLevelValues).notNull().default("medium"),
+  status: mysqlEnum("status", changeRequestStatusValues).notNull().default("draft"),
+  reviewResult: json("reviewResult").$type<{ passed: boolean; findings: Array<{ rule: string; severity: string; message: string }> }>(),
+  plan: json("plan").$type<Record<string, unknown>>(),
+  approver: varchar("approver", { length: 64 }),
+  approvedAt: timestamp("approvedAt"),
+  linkedExecutionKey: varchar("linkedExecutionKey", { length: 64 }),
+  requestedBy: varchar("requestedBy", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const queryAuditRecords = mysqlTable("query_audit_records", {
+  id: int("id").autoincrement().primaryKey(),
+  queryKey: varchar("queryKey", { length: 64 }).notNull().unique(),
+  instanceId: int("instanceId").references(() => databaseInstances.id),
+  engine: varchar("engine", { length: 32 }).notNull(),
+  sqlHash: varchar("sqlHash", { length: 128 }).notNull(),
+  status: mysqlEnum("status", queryAuditStatusValues).notNull().default("pending"),
+  maskedColumns: json("maskedColumns").$type<string[]>(),
+  requestedBy: varchar("requestedBy", { length: 64 }),
+  reviewedBy: varchar("reviewedBy", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export const notificationEvents = mysqlTable("notification_events", {

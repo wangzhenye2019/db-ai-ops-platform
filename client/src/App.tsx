@@ -10,7 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import Assets from "./pages/Assets";
 import Integrations from "./pages/Integrations";
 import Intelligence from "./pages/Intelligence";
-import Runbooks from "./pages/Runbooks";
+import Runbooks from "@/pages/Runbooks";
+import ServerAssets from "@/pages/ServerAssets";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -19,6 +20,7 @@ function Router() {
       <Switch>
         <Route path={"/"} component={Dashboard} />
         <Route path={"/assets"} component={Assets} />
+        <Route path={"/servers"} component={ServerAssets} />
         <Route path={"/runbooks"} component={Runbooks} />
         <Route path={"/integrations"} component={Integrations} />
         <Route path={"/intelligence"} component={Intelligence} />

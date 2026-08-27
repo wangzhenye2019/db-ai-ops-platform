@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Activity, Bot, Boxes, Cable, ClipboardList, Database, LayoutDashboard, LogOut, PanelLeft } from "lucide-react";
+import { Activity, Bot, Boxes, Cable, ClipboardList, Database, HardDrive, LayoutDashboard, LogOut, PanelLeft } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -31,6 +31,7 @@ import { LocalLoginGate, PasswordChangeGate } from "./LocalAuthGate";
 const menuItems = [
   { icon: LayoutDashboard, label: "运维总览", path: "/" },
   { icon: Database, label: "数据库资产", path: "/assets" },
+  { icon: HardDrive, label: "服务器资产", path: "/servers" },
   { icon: ClipboardList, label: "Runbook 中心", path: "/runbooks" },
   { icon: Cable, label: "集成与执行节点", path: "/integrations" },
   { icon: Bot, label: "智能处置", path: "/intelligence" },

@@ -63,5 +63,17 @@ describe("本地初始化凭据", () => {
       expect(response.status).toBe(400);
       expect(changeLocalPassword).not.toHaveBeenCalled();
     } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+    });
+  it("旧会话 Cookie 被认证层拒绝时不会执行改密", async () => {
+    const changeLocalPassword = vi.fn();
+    const app = express(); app.use(express.json());
+    registerLocalAuthRoutes(app, { authenticateRequest: async () => { throw new Error("expired local session"); }, changeLocalPassword, createSessionToken: async () => "must-not-issue" });
+    const server = await new Promise<ReturnType<typeof app.listen>>(resolve => { const listener = app.listen(0, () => resolve(listener)); });
+    const { port } = server.address() as AddressInfo;
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/api/local-auth/change-password`, { method: "POST", headers: { "content-type": "application/json", cookie: "session=local-session-v1" }, body: JSON.stringify({ currentPassword: "initial", nextPassword: "Strong-Password_2026!" }) });
+      expect(response.status).toBe(400);
+      expect(changeLocalPassword).not.toHaveBeenCalled();
+    } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
   });
 });
