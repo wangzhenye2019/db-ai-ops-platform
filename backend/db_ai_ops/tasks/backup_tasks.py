@@ -1,11 +1,22 @@
 import datetime
 import hashlib
 import os
+import re
 import subprocess
 
 from db_ai_ops.config import Config
 from db_ai_ops.extensions import celery, db
 from db_ai_ops.models import Backup, BackupStatus, Database, DatabaseType
+from db_ai_ops.security import open_private_output, run_argv
+
+
+_IDENTIFIER = re.compile(r'^[A-Za-z0-9_$#.-]+$')
+
+
+def _validate_identifier(value):
+    if not isinstance(value, str) or not value or not _IDENTIFIER.fullmatch(value):
+        raise ValueError('database identifier contains unsupported characters')
+    return value
 
 
 @celery.task
@@ -96,10 +107,13 @@ def backup_mysql(database_name, user, password, host="localhost", port=3306):
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(Config.BACKUP_FOLDER, f"{database_name}_{timestamp}.sql")
 
-    command = f"mysqldump -h{host} -P{port} -u{user} -p{password} {database_name} > {backup_file}"
+    env = os.environ.copy()
+    env['MYSQL_PWD'] = password
+    command = ['mysqldump', f'-h{host}', f'-P{port}', f'-u{user}', database_name]
 
     try:
-        subprocess.run(command, shell=True, check=True, timeout=1800)
+        with open_private_output(backup_file) as output:
+            run_argv(command, timeout=1800, stdout=output, env=env)
         file_size = os.path.getsize(backup_file)
         return {"file_path": backup_file, "file_size": file_size}
     except subprocess.TimeoutExpired:
@@ -115,10 +129,13 @@ def backup_mysql_incremental(database_name, user, password, host="localhost", po
     backup_file = os.path.join(Config.BACKUP_FOLDER, f"{database_name}_inc_{timestamp}.sql")
 
     # 使用 --single-transaction 和 --master-data=2 获取binlog位置
-    command = f"mysqldump -h{host} -P{port} -u{user} -p{password} --single-transaction --master-data=2 {database_name} > {backup_file}"
+    env = os.environ.copy()
+    env['MYSQL_PWD'] = password
+    command = ['mysqldump', f'-h{host}', f'-P{port}', f'-u{user}', '--single-transaction', '--master-data=2', database_name]
 
     try:
-        subprocess.run(command, shell=True, check=True, timeout=1800)
+        with open_private_output(backup_file) as output:
+            run_argv(command, timeout=1800, stdout=output, env=env)
         file_size = os.path.getsize(backup_file)
         return {"file_path": backup_file, "file_size": file_size}
     except subprocess.TimeoutExpired:
@@ -135,10 +152,10 @@ def backup_postgres(database_name, user, password, host="localhost", port=5432):
     env = os.environ.copy()
     env['PGPASSWORD'] = password
 
-    command = f"pg_dump -h {host} -p {port} -U {user} -F c -f {backup_file} {database_name}"
+    command = ['pg_dump', '-h', host, '-p', str(port), '-U', user, '-F', 'c', '-f', backup_file, database_name]
 
     try:
-        subprocess.run(command, shell=True, check=True, timeout=1800, env=env)
+        run_argv(command, timeout=1800, env=env)
         file_size = os.path.getsize(backup_file)
         return {"file_path": backup_file, "file_size": file_size}
     except subprocess.TimeoutExpired:
@@ -153,20 +170,22 @@ def backup_oracle(database_name, user, password, host="localhost", port=1521):
     dmp_file = os.path.join(Config.BACKUP_FOLDER, f"{database_name}_{timestamp}.dmp")
     log_file = os.path.join(Config.BACKUP_FOLDER, f"{database_name}_{timestamp}.log")
 
+    _validate_identifier(database_name)
+    _validate_identifier(user)
     conn_string = f"{user}/{password}@{host}:{port}/{database_name}"
-    command = f"expdp {conn_string} directory=DATA_PUMP_DIR dumpfile={os.path.basename(dmp_file)} logfile={os.path.basename(log_file)} schemas={user}"
+    command = ['expdp', conn_string, 'directory=DATA_PUMP_DIR', f'dumpfile={os.path.basename(dmp_file)}', f'logfile={os.path.basename(log_file)}', f'schemas={user}']
 
     try:
-        subprocess.run(command, shell=True, check=True, timeout=3600)
+        run_argv(command, timeout=3600)
         file_size = os.path.getsize(dmp_file)
         return {"file_path": dmp_file, "file_size": file_size}
     except subprocess.TimeoutExpired:
         raise Exception("Backup timeout (60 minutes)")
     except subprocess.CalledProcessError as e:
         old_dmp = os.path.join(Config.BACKUP_FOLDER, f"{database_name}_{timestamp}_old.dmp")
-        command = f"exp {conn_string} file={old_dmp} log={log_file}"
+        command = ['exp', conn_string, f'file={old_dmp}', f'log={log_file}']
         try:
-            subprocess.run(command, shell=True, check=True, timeout=3600)
+            run_argv(command, timeout=3600)
             file_size = os.path.getsize(old_dmp)
             return {"file_path": old_dmp, "file_size": file_size}
         except Exception:
@@ -178,11 +197,12 @@ def backup_mssql(database_name, user, password, host="localhost", port=1433):
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(Config.BACKUP_FOLDER, f"{database_name}_{timestamp}.bak")
 
+    _validate_identifier(database_name)
     sql_command = f"BACKUP DATABASE [{database_name}] TO DISK = N'{backup_file}' WITH NOFORMAT, NOINIT, NAME = N'{database_name}-Full Database Backup', SKIP, NOREWIND, NOUNLOAD, STATS = 10"
-    command = f'sqlcmd -S {host},{port} -U {user} -P {password} -Q "{sql_command}"'
+    command = ['sqlcmd', '-S', f'{host},{port}', '-U', user, '-P', password, '-Q', sql_command]
 
     try:
-        subprocess.run(command, shell=True, check=True, timeout=1800)
+        run_argv(command, timeout=1800)
         file_size = os.path.getsize(backup_file)
         return {"file_path": backup_file, "file_size": file_size}
     except subprocess.TimeoutExpired:
@@ -327,9 +347,11 @@ def restore_database(database_id, backup_id):
 @celery.task
 def restore_mysql(database_name, user, password, host, port, backup_file):
     """恢复MySQL数据库"""
-    command = f"mysql -h{host} -P{port} -u{user} -p{password} {database_name} < {backup_file}"
+    env = os.environ.copy()
+    env['MYSQL_PWD'] = password
     try:
-        subprocess.run(command, shell=True, check=True, timeout=3600)
+        with open(backup_file, 'rb') as source:
+            run_argv(['mysql', f'-h{host}', f'-P{port}', f'-u{user}', database_name], timeout=3600, stdin=source, env=env)
         return f"Restored database {database_name} from {backup_file}"
     except subprocess.CalledProcessError as e:
         raise Exception(f"MySQL restore failed: {e}")
@@ -340,9 +362,9 @@ def restore_postgres(database_name, user, password, host, port, backup_file):
     """恢复PostgreSQL数据库"""
     env = os.environ.copy()
     env['PGPASSWORD'] = password
-    command = f"pg_restore -h {host} -p {port} -U {user} -d {database_name} -c {backup_file}"
+    command = ['pg_restore', '-h', host, '-p', str(port), '-U', user, '-d', database_name, '-c', backup_file]
     try:
-        subprocess.run(command, shell=True, check=True, timeout=3600, env=env)
+        run_argv(command, timeout=3600, env=env)
         return f"Restored database {database_name} from {backup_file}"
     except subprocess.CalledProcessError as e:
         raise Exception(f"PostgreSQL restore failed: {e}")
@@ -351,16 +373,17 @@ def restore_postgres(database_name, user, password, host, port, backup_file):
 @celery.task
 def restore_oracle(user, password, host, port, backup_file):
     """恢复Oracle数据库"""
+    _validate_identifier(user)
     conn_string = f"{user}/{password}@{host}:{port}"
-    command = f"impdp {conn_string} directory=DATA_PUMP_DIR dumpfile={os.path.basename(backup_file)} table_exists_action=replace"
+    command = ['impdp', conn_string, 'directory=DATA_PUMP_DIR', f'dumpfile={os.path.basename(backup_file)}', 'table_exists_action=replace']
     try:
-        subprocess.run(command, shell=True, check=True, timeout=3600)
+        run_argv(command, timeout=3600)
         return f"Restored from {backup_file}"
     except subprocess.CalledProcessError as e:
         # 尝试使用imp
-        old_command = f"imp {conn_string} file={backup_file} full=y"
+        old_command = ['imp', conn_string, f'file={backup_file}', 'full=y']
         try:
-            subprocess.run(old_command, shell=True, check=True, timeout=3600)
+            run_argv(old_command, timeout=3600)
             return f"Restored from {backup_file}"
         except Exception:
             raise Exception(f"Oracle restore failed: {e}")

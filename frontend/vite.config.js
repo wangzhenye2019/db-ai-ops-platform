@@ -9,6 +9,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src')
     }
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router'],
+          'element-vendor': ['element-plus', '@element-plus/icons-vue'],
+          'utility-vendor': ['axios', 'dayjs']
+        }
+      }
+    }
+  },
   server: {
     port: 3000,
     proxy: {

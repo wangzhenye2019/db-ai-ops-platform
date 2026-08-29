@@ -32,7 +32,11 @@ def _ssh_exec(host_obj, command, timeout_seconds=30):
         raise Exception('Host password is empty')
 
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    known_hosts = os.getenv('SSH_KNOWN_HOSTS_PATH', os.path.expanduser('~/.ssh/known_hosts'))
+    if not os.path.isfile(known_hosts):
+        raise Exception('SSH known_hosts file is required')
+    client.load_host_keys(known_hosts)
+    client.set_missing_host_key_policy(paramiko.RejectPolicy())
     client.connect(
         hostname=host_obj.host,
         port=host_obj.port,
@@ -72,6 +76,8 @@ def run_operation_task(task_id):
                 service = (payload.get('service') or payload.get('params', {}).get('service') or '').strip()
                 if not service:
                     raise Exception('service 不能为空')
+                if any(char in service for char in ';|&\n\r`$'):
+                    raise Exception('service 包含不允许的 shell 字符')
                 command = f"systemctl restart {service} && systemctl is-active {service}"
             else:
                 command = (payload.get('command') or payload.get('params', {}).get('command') or payload.get('params', {}).get('script') or '').strip()
